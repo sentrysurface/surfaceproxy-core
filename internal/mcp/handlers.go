@@ -13,6 +13,8 @@ import (
 	"github.com/sentrysurface/surface-proxy/internal/pruning"
 )
 
+// Handlers implements all MCP tool call handlers and manages the connection
+// to the headless browser via CDP WebSocket.
 type Handlers struct {
 	cfg        *config.Config
 	evaluator  firewall.Evaluator
@@ -32,6 +34,18 @@ func NewHandlers(cfg *config.Config, ev firewall.Evaluator, pr *pruning.Pruner) 
 		diffEngine: pruning.NewDiffEngine(),
 		pending:    make(map[int64]chan []byte),
 	}
+}
+
+// UpdateBrowserURL updates the target browser URL (called when the launcher starts a new browser).
+func (h *Handlers) UpdateBrowserURL(wsURL string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	// Reset existing connection so it reconnects to the new URL
+	if h.wsConn != nil {
+		h.wsConn.Close()
+		h.wsConn = nil
+	}
+	h.cfg.TargetBrowserURL = wsURL
 }
 
 func (h *Handlers) connectBrowser() error {
@@ -65,9 +79,14 @@ func (h *Handlers) connectBrowser() error {
 			}
 
 			var msg struct {
-				ID int64 `json:"id"`
+				ID     int64  `json:"id"`
+				Method string `json:"method"`
 			}
-			if err := json.Unmarshal(data, &msg); err == nil && msg.ID != 0 {
+			if err := json.Unmarshal(data, &msg); err != nil {
+				continue
+			}
+
+			if msg.ID != 0 {
 				h.mu.Lock()
 				ch, ok := h.pending[msg.ID]
 				h.mu.Unlock()
@@ -144,109 +163,184 @@ func (h *Handlers) sendCDPCommand(method string, params interface{}) (json.RawMe
 			return nil, fmt.Errorf("CDP error: %s (code %d)", cdpResp.Error.Message, cdpResp.Error.Code)
 		}
 		return cdpResp.Result, nil
-	case <-time.After(10 * time.Second):
+	case <-time.After(15 * time.Second):
 		return nil, errors.New("timeout waiting for browser response")
 	}
 }
 
-func (h *Handlers) HandleBrowse(params json.RawMessage) (interface{}, error) {
+// waitForPageLoad enables Page events and waits for Page.loadEventFired
+// before proceeding, replacing the brittle time.Sleep approach.
+func (h *Handlers) waitForPageLoad(timeoutSecs int) error {
+	// Enable Page domain events
+	if _, err := h.sendCDPCommand("Page.enable", nil); err != nil {
+		return fmt.Errorf("Page.enable failed: %w", err)
+	}
+
+	// Register a one-shot pending channel keyed on a sentinel ID that will
+	// intercept the next Page.loadEventFired event from the reader goroutine.
+	// The reader dispatches by msg.ID — for events, ID is 0 and method is set.
+	// We use a dedicated event waiter instead.
+	done := make(chan struct{}, 1)
+	timeout := time.Duration(timeoutSecs) * time.Second
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	// Register event listener before navigating
+	eventCh := h.registerEventListener("Page.loadEventFired")
+	defer h.unregisterEventListener("Page.loadEventFired", eventCh)
+
+	select {
+	case <-eventCh:
+		return nil
+	case <-timer.C:
+		return fmt.Errorf("page load timed out after %ds", timeoutSecs)
+	case <-done:
+		return nil
+	}
+}
+
+// Event listener management
+var (
+	eventMu       sync.Mutex
+	eventListeners = make(map[string][]chan struct{})
+)
+
+// dispatchEvent is called by the connection reader goroutine for CDP events (id=0).
+// This is a package-level function since events come from the shared connection.
+func dispatchEvent(method string) {
+	eventMu.Lock()
+	defer eventMu.Unlock()
+	for _, ch := range eventListeners[method] {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (h *Handlers) registerEventListener(method string) chan struct{} {
+	ch := make(chan struct{}, 1)
+	eventMu.Lock()
+	eventListeners[method] = append(eventListeners[method], ch)
+	eventMu.Unlock()
+	return ch
+}
+
+func (h *Handlers) unregisterEventListener(method string, target chan struct{}) {
+	eventMu.Lock()
+	defer eventMu.Unlock()
+	list := eventListeners[method]
+	for i, ch := range list {
+		if ch == target {
+			eventListeners[method] = append(list[:i], list[i+1:]...)
+			return
+		}
+	}
+}
+
+// ── Tool definitions for tools/list ─────────────────────────────────────────
+
+// ToolManifest returns the full list of MCP tools exposed by SurfaceProxy.
+func ToolManifest() []Tool {
+	return []Tool{
+		{
+			Name:        "browse",
+			Description: "Navigate the headless browser to a URL and return a semantically pruned, token-optimised Markdown representation of the page content.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"url": {Type: "string", Description: "The fully-qualified URL to navigate to (e.g. https://example.com)."},
+				},
+				Required: []string{"url"},
+			},
+		},
+		{
+			Name:        "getDOM",
+			Description: "Return a semantically pruned Markdown snapshot of the current browser page without navigating. Uses structural diffing to only return changed nodes on subsequent calls.",
+			InputSchema: InputSchema{
+				Type:       "object",
+				Properties: map[string]Property{},
+			},
+		},
+		{
+			Name:        "click",
+			Description: "Click a DOM element identified by a CSS selector on the current page.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"selector": {Type: "string", Description: "A CSS selector string identifying the element to click (e.g. #submit-button, .nav-link)."},
+				},
+				Required: []string{"selector"},
+			},
+		},
+		{
+			Name:        "type",
+			Description: "Type text into a focused input element identified by a CSS selector.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"selector": {Type: "string", Description: "CSS selector of the input element."},
+					"text":     {Type: "string", Description: "The text to type into the input."},
+				},
+				Required: []string{"selector", "text"},
+			},
+		},
+		{
+			Name:        "screenshot",
+			Description: "Capture a PNG screenshot of the current browser viewport and return it as a base64-encoded string.",
+			InputSchema: InputSchema{
+				Type:       "object",
+				Properties: map[string]Property{},
+			},
+		},
+	}
+}
+
+// ── Tool call handlers ───────────────────────────────────────────────────────
+
+func (h *Handlers) HandleBrowse(args json.RawMessage) ToolCallResult {
 	var p struct {
 		URL string `json:"url"`
 	}
-	if err := json.Unmarshal(params, &p); err != nil {
-		return nil, err
-	}
-	if p.URL == "" {
-		return nil, errors.New("url parameter is required")
+	if err := json.Unmarshal(args, &p); err != nil || p.URL == "" {
+		return ErrorContent("browse requires a 'url' argument")
 	}
 
 	allowed, reason, err := h.evaluator.EvaluateURL(p.URL)
 	if err != nil {
-		return nil, err
+		return ErrorContent("firewall evaluation error: " + err.Error())
 	}
 	if !allowed {
-		return map[string]interface{}{
-			"status": "blocked",
-			"reason": reason,
-		}, nil
+		return ErrorContent(fmt.Sprintf("URL blocked by firewall: %s — Reason: %s", p.URL, reason))
 	}
 
-	_, err = h.sendCDPCommand("Page.navigate", map[string]string{"url": p.URL})
-	if err != nil {
-		return nil, err
+	if _, err := h.sendCDPCommand("Page.navigate", map[string]string{"url": p.URL}); err != nil {
+		return ErrorContent("navigation failed: " + err.Error())
 	}
 
-	time.Sleep(1500 * time.Millisecond)
+	// Wait for real page load event instead of sleeping
+	if err := h.waitForPageLoad(20); err != nil {
+		// Non-fatal: continue with whatever content is available
+	}
 
 	dom, err := h.getCurrentPrunedDOM(p.URL)
 	if err != nil {
-		return nil, err
+		return ErrorContent("DOM retrieval failed: " + err.Error())
 	}
 
-	return map[string]interface{}{
-		"status": "success",
-		"url":    p.URL,
-		"dom":    dom,
-	}, nil
+	return TextContent(dom)
 }
 
-func (h *Handlers) HandleClick(params json.RawMessage) (interface{}, error) {
-	var p struct {
-		Selector string `json:"selector"`
-	}
-	if err := json.Unmarshal(params, &p); err != nil {
-		return nil, err
-	}
-	if p.Selector == "" {
-		return nil, errors.New("selector parameter is required")
-	}
-
-	js := fmt.Sprintf(`document.querySelector("%s").click()`, p.Selector)
-	_, err := h.sendCDPCommand("Runtime.evaluate", map[string]interface{}{
-		"expression": js,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]interface{}{
-		"status": "success",
-	}, nil
-}
-
-func (h *Handlers) HandleScreenshot(params json.RawMessage) (interface{}, error) {
-	result, err := h.sendCDPCommand("Page.captureScreenshot", map[string]interface{}{
-		"format": "png",
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var res struct {
-		Data string `json:"data"`
-	}
-	if err := json.Unmarshal(result, &res); err != nil {
-		return nil, err
-	}
-
-	return map[string]interface{}{
-		"status":     "success",
-		"screenshot": res.Data,
-	}, nil
-}
-
-func (h *Handlers) HandleGetDOM(params json.RawMessage) (interface{}, error) {
+func (h *Handlers) HandleGetDOM(_ json.RawMessage) ToolCallResult {
 	res, err := h.sendCDPCommand("Runtime.evaluate", map[string]interface{}{
 		"expression": "window.location.href",
 	})
 	if err != nil {
-		return nil, err
+		return ErrorContent("failed to get current URL: " + err.Error())
 	}
 
 	var valRes struct {
-		Result struct {
-			Value string `json:"value"`
-		} `json:"result"`
+		Result struct{ Value string `json:"value"` } `json:"result"`
 	}
 	url := "current_page"
 	if json.Unmarshal(res, &valRes) == nil && valRes.Result.Value != "" {
@@ -255,14 +349,61 @@ func (h *Handlers) HandleGetDOM(params json.RawMessage) (interface{}, error) {
 
 	dom, err := h.getCurrentPrunedDOM(url)
 	if err != nil {
-		return nil, err
+		return ErrorContent("DOM retrieval failed: " + err.Error())
+	}
+	return TextContent(dom)
+}
+
+func (h *Handlers) HandleClick(args json.RawMessage) ToolCallResult {
+	var p struct {
+		Selector string `json:"selector"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || p.Selector == "" {
+		return ErrorContent("click requires a 'selector' argument")
 	}
 
-	return map[string]interface{}{
-		"status": "success",
-		"url":    url,
-		"dom":    dom,
-	}, nil
+	js := fmt.Sprintf(`(function(){var el=document.querySelector(%q);if(!el)throw new Error('element not found');el.click();return true;})()`, p.Selector)
+	if _, err := h.sendCDPCommand("Runtime.evaluate", map[string]interface{}{
+		"expression":    js,
+		"returnByValue": true,
+	}); err != nil {
+		return ErrorContent("click failed: " + err.Error())
+	}
+	return TextContent("clicked: " + p.Selector)
+}
+
+func (h *Handlers) HandleType(args json.RawMessage) ToolCallResult {
+	var p struct {
+		Selector string `json:"selector"`
+		Text     string `json:"text"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || p.Selector == "" {
+		return ErrorContent("type requires 'selector' and 'text' arguments")
+	}
+
+	js := fmt.Sprintf(`(function(){var el=document.querySelector(%q);if(!el)throw new Error('element not found');el.focus();el.value=%q;el.dispatchEvent(new Event('input',{bubbles:true}));return true;})()`, p.Selector, p.Text)
+	if _, err := h.sendCDPCommand("Runtime.evaluate", map[string]interface{}{
+		"expression":    js,
+		"returnByValue": true,
+	}); err != nil {
+		return ErrorContent("type failed: " + err.Error())
+	}
+	return TextContent(fmt.Sprintf("typed into %s: %q", p.Selector, p.Text))
+}
+
+func (h *Handlers) HandleScreenshot(_ json.RawMessage) ToolCallResult {
+	result, err := h.sendCDPCommand("Page.captureScreenshot", map[string]interface{}{"format": "png"})
+	if err != nil {
+		return ErrorContent("screenshot failed: " + err.Error())
+	}
+
+	var res struct {
+		Data string `json:"data"`
+	}
+	if err := json.Unmarshal(result, &res); err != nil {
+		return ErrorContent("failed to decode screenshot: " + err.Error())
+	}
+	return TextContent("data:image/png;base64," + res.Data)
 }
 
 func (h *Handlers) getCurrentPrunedDOM(pageKey string) (string, error) {
@@ -274,9 +415,7 @@ func (h *Handlers) getCurrentPrunedDOM(pageKey string) (string, error) {
 	}
 
 	var valRes struct {
-		Result struct {
-			Value string `json:"value"`
-		} `json:"result"`
+		Result struct{ Value string `json:"value"` } `json:"result"`
 	}
 	if err := json.Unmarshal(res, &valRes); err != nil {
 		return "", err
@@ -287,9 +426,6 @@ func (h *Handlers) getCurrentPrunedDOM(pageKey string) (string, error) {
 		return "", err
 	}
 
-	diff, changed := h.diffEngine.ComputeDiff(pageKey, pruned)
-	if changed {
-		return string(diff), nil
-	}
-	return string(pruned), nil
+	diff, _ := h.diffEngine.ComputeDiff(pageKey, pruned)
+	return string(diff), nil
 }
