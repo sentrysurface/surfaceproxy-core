@@ -133,7 +133,7 @@ func (l *Launcher) Stop() {
 
 func (l *Launcher) shutdownLocked() {
 	if l.cmd != nil && l.cmd.Process != nil {
-		l.cmd.Process.Kill()
+		_ = l.cmd.Process.Kill()
 	}
 	l.running = false
 	l.wsURL = ""

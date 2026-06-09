@@ -122,6 +122,8 @@ func (h *Handlers) connectBrowser() error {
 					default:
 					}
 				}
+			} else if msg.Method != "" {
+				dispatchEvent(msg.Method)
 			}
 		}
 	}()
@@ -345,9 +347,8 @@ func (h *Handlers) HandleBrowse(args json.RawMessage) ToolCallResult {
 	}
 
 	// Wait for real page load event instead of sleeping
-	if err := h.waitForPageLoad(20); err != nil {
-		// Non-fatal: continue with whatever content is available
-	}
+	// Non-fatal: continue with whatever content is available if it times out
+	_ = h.waitForPageLoad(20)
 
 	dom, err := h.getCurrentPrunedDOM(p.URL)
 	if err != nil {
