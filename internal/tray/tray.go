@@ -1,4 +1,4 @@
-//go:build !headless
+//go:build (darwin || windows) && !headless
 
 package tray
 
