@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log"
+	"os"
 
 	"github.com/sentrysurface/surface-proxy/internal/browser"
 	"github.com/sentrysurface/surface-proxy/internal/cdp"
@@ -10,6 +11,7 @@ import (
 	"github.com/sentrysurface/surface-proxy/internal/firewall"
 	"github.com/sentrysurface/surface-proxy/internal/mcp"
 	"github.com/sentrysurface/surface-proxy/internal/pruning"
+	"github.com/sentrysurface/surface-proxy/internal/telemetry"
 	"github.com/sentrysurface/surface-proxy/internal/ui"
 	"github.com/sentrysurface/surface-proxy/internal/util"
 )
@@ -18,23 +20,20 @@ import (
 type Mode int
 
 const (
-	// ModeFull starts the CDP proxy, MCP server (websocket or stdio), and dashboard UI.
-	ModeFull Mode = iota
-	// ModeMCPOnly starts only the MCP stdio server and browser launcher — no CDP proxy or UI.
-	// This is the mode used when an IDE spawns the binary as an MCP subprocess.
-	ModeMCPOnly
+	ModeFull    Mode = iota // CDP proxy + MCP server + dashboard UI
+	ModeMCPOnly             // MCP stdio only (for IDE subprocess invocation)
 )
 
 // App is the root application object that owns all component lifetimes.
 type App struct {
-	mode       Mode
-	configPath string
-	loader     *config.Loader
-	firewall   *firewall.RuleEngine
-	pruner     *pruning.Pruner
-	launcher   *browser.Launcher // nil when browser.mode = "external"
-	proxy      *cdp.Proxy        // nil in ModeMCPOnly
-	mcpServer  *mcp.Server
+	mode      Mode
+	loader    *config.Loader
+	firewall  *firewall.RuleEngine
+	pruner    *pruning.Pruner
+	ledger    *telemetry.Ledger
+	launcher  *browser.Launcher
+	proxy     *cdp.Proxy
+	mcpServer *mcp.Server
 }
 
 func NewApp(configPath string, mode Mode) (*App, error) {
@@ -42,7 +41,6 @@ func NewApp(configPath string, mode Mode) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	cfg := loader.GetConfig()
 
 	fw, err := firewall.NewRuleEngine(cfg.Firewall)
@@ -51,19 +49,19 @@ func NewApp(configPath string, mode Mode) (*App, error) {
 		return nil, err
 	}
 
+	ledger := telemetry.NewLedger()
 	pr := pruning.NewPruner(cfg.Pruning)
+	pr.SetTelemetry(ledger)
 
-	// Conditionally build the browser launcher
 	var launcher *browser.Launcher
 	if cfg.Browser.Mode != "external" {
 		launcher = browser.NewLauncher(cfg.Browser)
 	}
 
-	mcpHandlers := mcp.NewHandlers(cfg, fw, pr)
+	mcpHandlers := mcp.NewHandlers(cfg, fw, pr, ledger)
 
 	var proxy *cdp.Proxy
 	if mode == ModeFull {
-		// Cast launcher to BrowserURLProvider interface (nil is safe — proxy handles nil gracefully)
 		var bup cdp.BrowserURLProvider
 		if launcher != nil {
 			bup = launcher
@@ -74,17 +72,16 @@ func NewApp(configPath string, mode Mode) (*App, error) {
 	mcpServer := mcp.NewServer(cfg, mcpHandlers)
 
 	app := &App{
-		mode:       mode,
-		configPath: configPath,
-		loader:     loader,
-		firewall:   fw,
-		pruner:     pr,
-		launcher:   launcher,
-		proxy:      proxy,
-		mcpServer:  mcpServer,
+		mode:      mode,
+		loader:    loader,
+		firewall:  fw,
+		pruner:    pr,
+		ledger:    ledger,
+		launcher:  launcher,
+		proxy:     proxy,
+		mcpServer: mcpServer,
 	}
 
-	// Hot-reload config on file change
 	if err := loader.Watch(func(newCfg *config.Config) {
 		log.Println("[CONFIG] Configuration changed — hot-reloading rules...")
 		if err := fw.UpdateRules(newCfg.Firewall); err != nil {
@@ -104,23 +101,21 @@ func NewApp(configPath string, mode Mode) (*App, error) {
 func (a *App) Start(ctx context.Context) error {
 	errChan := make(chan error, 4)
 
-	// Step 1: Start the browser (unless using an external browser endpoint)
+	// Step 1: Start the browser
 	if a.launcher != nil {
 		wsURL, err := a.launcher.Start(ctx)
 		if err != nil {
 			log.Printf("[APP] Browser launcher failed: %v", err)
-			// Non-fatal in full mode if there's a static TargetBrowserURL fallback
 			if a.loader.GetConfig().TargetBrowserURL == "" {
 				return err
 			}
 			log.Printf("[APP] Falling back to static TargetBrowserURL: %s", a.loader.GetConfig().TargetBrowserURL)
 		} else {
-			// Push the live URL to the MCP handlers so they use the managed browser
 			a.mcpServer.Handlers().UpdateBrowserURL(wsURL)
 		}
 	}
 
-	// Step 2: Start the CDP proxy (full mode only)
+	// Step 2: CDP proxy (full mode only)
 	if a.proxy != nil {
 		util.SafeGo(func() {
 			if err := a.proxy.ListenAndServe(ctx); err != nil {
@@ -129,17 +124,17 @@ func (a *App) Start(ctx context.Context) error {
 		})
 	}
 
-	// Step 3: Start the MCP server
+	// Step 3: MCP server
 	util.SafeGo(func() {
 		if err := a.mcpServer.Start(ctx); err != nil {
 			errChan <- err
 		}
 	})
 
-	// Step 4: Start the dashboard UI (full mode only)
+	// Step 4: Dashboard UI (full mode only)
 	if a.mode == ModeFull {
 		util.SafeGo(func() {
-			uiServer := ui.NewServer(a.loader.GetConfig())
+			uiServer := ui.NewServer(a.loader.GetConfig(), a.ledger)
 			if err := uiServer.Start(ctx); err != nil {
 				errChan <- err
 			}
@@ -157,6 +152,14 @@ func (a *App) Start(ctx context.Context) error {
 }
 
 func (a *App) Close() {
+	// Print global telemetry summary on exit
+	if a.ledger != nil {
+		stats := a.ledger.GlobalStats()
+		if stats.TotalPruneOps > 0 {
+			telemetry.PrintGlobalSummary(stats, telemetry.DefaultPricing, os.Stderr)
+		}
+	}
+
 	if a.launcher != nil {
 		a.launcher.Stop()
 	}

@@ -12,14 +12,27 @@ import (
 	"golang.org/x/net/html/atom"
 )
 
+// TelemetryRecorder is satisfied by telemetry.Ledger and allows the pruner
+// to emit metrics without importing the telemetry package directly (avoiding
+// potential import cycles if telemetry ever imports pruning types).
+type TelemetryRecorder interface {
+	RecordPrune(sessionID string, rawBytes, prunedBytes int)
+}
+
 type Pruner struct {
-	cfg atomic.Pointer[config.PruningConfig]
+	cfg       atomic.Pointer[config.PruningConfig]
+	telemetry TelemetryRecorder // nil = disabled
 }
 
 func NewPruner(cfg config.PruningConfig) *Pruner {
 	p := &Pruner{}
 	p.UpdateConfig(cfg)
 	return p
+}
+
+// SetTelemetry attaches a telemetry recorder. Thread-safe; can be called after construction.
+func (p *Pruner) SetTelemetry(t TelemetryRecorder) {
+	p.telemetry = t
 }
 
 func (p *Pruner) UpdateConfig(cfg config.PruningConfig) {
@@ -32,7 +45,14 @@ type SemanticNode struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
+// Prune tokenizes htmlData and returns a semantic Markdown or JSON representation.
+// sessionID is used to associate telemetry with a session; pass empty string to skip.
 func (p *Pruner) Prune(htmlData []byte) ([]byte, error) {
+	return p.PruneWithSession(htmlData, "")
+}
+
+// PruneWithSession is like Prune but records telemetry under the given session ID.
+func (p *Pruner) PruneWithSession(htmlData []byte, sessionID string) ([]byte, error) {
 	cfg := p.cfg.Load()
 	stripTags := make(map[string]bool)
 	outputFormat := "markdown"
@@ -44,11 +64,20 @@ func (p *Pruner) Prune(htmlData []byte) ([]byte, error) {
 	}
 
 	tokenizer := html.NewTokenizer(bytes.NewReader(htmlData))
-	
+
+	var result []byte
+	var err error
 	if outputFormat == "json" {
-		return p.pruneToJSON(tokenizer, stripTags)
+		result, err = p.pruneToJSON(tokenizer, stripTags)
+	} else {
+		result, err = p.pruneToMarkdown(tokenizer, stripTags)
 	}
-	return p.pruneToMarkdown(tokenizer, stripTags)
+
+	if err == nil && p.telemetry != nil && sessionID != "" {
+		p.telemetry.RecordPrune(sessionID, len(htmlData), len(result))
+	}
+
+	return result, err
 }
 
 func (p *Pruner) pruneToJSON(tokenizer *html.Tokenizer, stripTags map[string]bool) ([]byte, error) {

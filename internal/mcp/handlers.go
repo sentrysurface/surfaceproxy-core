@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/sentrysurface/surface-proxy/internal/config"
 	"github.com/sentrysurface/surface-proxy/internal/firewall"
 	"github.com/sentrysurface/surface-proxy/internal/pruning"
+	"github.com/sentrysurface/surface-proxy/internal/telemetry"
+	"github.com/sentrysurface/surface-proxy/internal/util"
 )
 
 // Handlers implements all MCP tool call handlers and manages the connection
@@ -20,19 +23,25 @@ type Handlers struct {
 	evaluator  firewall.Evaluator
 	pruner     *pruning.Pruner
 	diffEngine *pruning.DiffEngine
+	ledger     *telemetry.Ledger
 	mu         sync.Mutex
 	wsConn     *websocket.Conn
 	nextID     int64
 	pending    map[int64]chan []byte
+	// sessionID for the current MCP session (used for telemetry)
+	sessionID  string
 }
 
-func NewHandlers(cfg *config.Config, ev firewall.Evaluator, pr *pruning.Pruner) *Handlers {
+func NewHandlers(cfg *config.Config, ev firewall.Evaluator, pr *pruning.Pruner, ledger *telemetry.Ledger) *Handlers {
+	sessionID := util.GenerateID()
 	return &Handlers{
 		cfg:        cfg,
 		evaluator:  ev,
 		pruner:     pr,
 		diffEngine: pruning.NewDiffEngine(),
+		ledger:     ledger,
 		pending:    make(map[int64]chan []byte),
+		sessionID:  sessionID,
 	}
 }
 
@@ -40,12 +49,29 @@ func NewHandlers(cfg *config.Config, ev firewall.Evaluator, pr *pruning.Pruner) 
 func (h *Handlers) UpdateBrowserURL(wsURL string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	// Reset existing connection so it reconnects to the new URL
 	if h.wsConn != nil {
 		h.wsConn.Close()
 		h.wsConn = nil
 	}
 	h.cfg.TargetBrowserURL = wsURL
+}
+
+// OpenSession registers a new MCP session in the telemetry ledger.
+func (h *Handlers) OpenSession(url string) {
+	if h.ledger != nil {
+		h.ledger.OpenSession(h.sessionID, url)
+	}
+}
+
+// CloseSession closes the telemetry session and prints the ROI summary.
+func (h *Handlers) CloseSession() {
+	if h.ledger == nil {
+		return
+	}
+	record, ok := h.ledger.CloseSession(h.sessionID)
+	if ok && record.PruneCount > 0 {
+		telemetry.PrintSessionSummary(record, telemetry.DefaultPricing, os.Stderr)
+	}
 }
 
 func (h *Handlers) connectBrowser() error {
@@ -421,9 +447,15 @@ func (h *Handlers) getCurrentPrunedDOM(pageKey string) (string, error) {
 		return "", err
 	}
 
-	pruned, err := h.pruner.Prune([]byte(valRes.Result.Value))
+	// Use PruneWithSession so telemetry is recorded against the active session
+	pruned, err := h.pruner.PruneWithSession([]byte(valRes.Result.Value), h.sessionID)
 	if err != nil {
 		return "", err
+	}
+
+	// Update the session's current URL in the ledger
+	if h.ledger != nil {
+		h.ledger.UpdateSessionURL(h.sessionID, pageKey)
 	}
 
 	diff, _ := h.diffEngine.ComputeDiff(pageKey, pruned)
