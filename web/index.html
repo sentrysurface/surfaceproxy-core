@@ -1,335 +1,259 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SurfaceProxy Developer Dashboard</title>
-  <!-- Google Fonts: Outfit -->
+  <title>SurfaceProxy — Developer Dashboard</title>
+  <meta name="description" content="Real-time token savings, session metrics, and firewall telemetry for the SurfaceProxy AI web-browsing proxy.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <!-- Tailwind CSS CDN -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Alpine.js -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
-          fontFamily: {
-            sans: ['Outfit', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-          },
-          colors: {
-            brand: {
-              50: '#f5f3ff',
-              100: '#ede9fe',
-              500: '#8b5cf6',
-              600: '#7c3aed',
-              900: '#4c1d95',
-            }
-          }
+          fontFamily: { sans: ['Outfit','sans-serif'], mono: ['JetBrains Mono','monospace'] },
+          colors: { brand: { 400:'#a78bfa', 500:'#8b5cf6', 600:'#7c3aed', 900:'#4c1d95' } }
         }
       }
     }
   </script>
   <style>
-    body {
-      background-color: #0b0f19;
-      color: #f3f4f6;
-    }
-    .glass {
-      background: rgba(17, 24, 39, 0.7);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    .glow {
-      box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.4);
-    }
+    html { background:#080c14; }
+    body { background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124,58,237,0.12), transparent); }
+    .glass { background:rgba(15,20,35,0.75); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); }
+    .glow-purple { box-shadow:0 0 30px -8px rgba(139,92,246,0.5); }
+    .glow-green { box-shadow:0 0 30px -8px rgba(52,211,153,0.4); }
+    .stat-card { transition: transform 0.2s ease, border-color 0.2s ease; }
+    .stat-card:hover { transform:translateY(-2px); border-color:rgba(139,92,246,0.3) !important; }
+    .counter { font-variant-numeric: tabular-nums; }
+    @keyframes pulse-dot { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    .pulse-dot { animation: pulse-dot 2s infinite; }
   </style>
 </head>
-<body class="font-sans antialiased min-h-screen flex flex-col justify-between" x-data="dashboard()">
+<body class="font-sans text-gray-100 min-h-screen antialiased" x-data="dashboard()" x-init="init()">
 
-  <!-- Background decorations -->
-  <div class="absolute top-0 left-0 w-96 h-96 bg-brand-600/10 rounded-full blur-[100px] pointer-events-none"></div>
-  <div class="absolute bottom-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+  <!-- Ambient blobs -->
+  <div class="fixed top-0 left-0 w-[600px] h-[600px] bg-brand-600/8 rounded-full blur-[120px] pointer-events-none -translate-x-1/2 -translate-y-1/2"></div>
+  <div class="fixed bottom-0 right-0 w-[500px] h-[500px] bg-blue-600/8 rounded-full blur-[120px] pointer-events-none translate-x-1/3 translate-y-1/3"></div>
 
   <!-- Navbar -->
-  <header class="glass sticky top-0 z-50 border-b border-white/5 px-6 py-4">
-    <div class="max-w-7xl mx-auto flex items-center justify-between">
+  <nav class="glass sticky top-0 z-50 border-b border-white/5">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <!-- Logo -->
-        <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-brand-600 to-blue-500 flex items-center justify-center glow">
-          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 009 11m-3.44 2.04A13.916 13.916 0 014 11V7a4 4 0 014-4h8a4 4 0 014 4v4c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09a13.916 13.916 0 002.753-9.57m-3.44 2.04A13.916 13.916 0 0115 11M12 7v4" />
-          </svg>
+        <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-brand-600 to-blue-500 flex items-center justify-center glow-purple flex-shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
         </div>
         <div>
-          <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-            SurfaceProxy
-          </h1>
-          <p class="text-xs text-gray-500">Core Engine Admin Console</p>
+          <h1 class="text-lg font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent leading-tight">SurfaceProxy</h1>
+          <p class="text-[10px] text-gray-500 leading-tight tracking-widest uppercase">Core Engine Console</p>
         </div>
       </div>
-      <!-- Connection Status Badge -->
-      <div class="flex items-center gap-2">
-        <span class="relative flex h-3 w-3">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-        </span>
-        <span class="text-sm font-medium text-gray-300" x-text="status.status ? 'CONNECTED' : 'OFFLINE'"></span>
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full pulse-dot" :class="connected ? 'bg-emerald-400' : 'bg-red-500'"></span>
+          <span class="text-sm font-medium" :class="connected ? 'text-emerald-400' : 'text-red-400'" x-text="connected ? 'LIVE' : 'OFFLINE'"></span>
+        </div>
+        <span class="text-xs text-gray-600 font-mono" x-text="stats.proxy_addr ? 'ws://' + stats.proxy_addr : 'ws://:8443'"></span>
       </div>
     </div>
-  </header>
+  </nav>
 
-  <!-- Main Content -->
-  <main class="flex-grow max-w-7xl w-full mx-auto px-6 py-8">
-    
-    <!-- Top Stats Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-      <!-- Stat 1: Active Sessions -->
-      <div class="glass p-6 rounded-2xl transition duration-300 hover:scale-[1.02] hover:border-brand-500/20">
-        <div class="flex items-center justify-between mb-4">
-          <span class="text-sm font-medium text-gray-400">Active Sessions</span>
-          <div class="p-2 bg-brand-500/10 text-brand-500 rounded-xl">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+  <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+
+    <!-- Hero ROI metric -->
+    <div class="glass rounded-2xl p-6 glow-green border-emerald-500/10">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <p class="text-sm text-gray-400 font-medium mb-1">💰 Total Dollars Saved This Session</p>
+          <div class="text-5xl font-bold counter bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent" x-text="'$' + (stats.dollars_saved || 0).toFixed(6)">$0.000000</div>
+          <p class="text-xs text-gray-500 mt-2">Tokens Compressed × API Unit Price (Claude 3.5 Sonnet @ $0.003/1K)</p>
+        </div>
+        <div class="grid grid-cols-2 gap-4 md:gap-6">
+          <div class="text-center">
+            <div class="text-3xl font-bold counter text-brand-400" x-text="formatPct(stats.reduction_pct) + '%'">—</div>
+            <div class="text-xs text-gray-500 mt-1">Context Reduction</div>
+          </div>
+          <div class="text-center">
+            <div class="text-3xl font-bold counter text-blue-400" x-text="formatCount(stats.tokens_reduced || 0)">—</div>
+            <div class="text-xs text-gray-500 mt-1">Tokens Saved</div>
           </div>
         </div>
-        <div class="text-3xl font-bold tracking-tight text-white" x-text="sessionsCount">0</div>
-        <p class="text-xs text-gray-500 mt-2">Goroutine-isolated pipelines</p>
-      </div>
-
-      <!-- Stat 2: Tokens Saved -->
-      <div class="glass p-6 rounded-2xl transition duration-300 hover:scale-[1.02] hover:border-brand-500/20">
-        <div class="flex items-center justify-between mb-4">
-          <span class="text-sm font-medium text-gray-400">Context Reduction</span>
-          <div class="p-2 bg-green-500/10 text-green-400 rounded-xl">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
-            </svg>
-          </div>
-        </div>
-        <div class="text-3xl font-bold tracking-tight text-white" x-text="reductionRate + '%'">84.3%</div>
-        <p class="text-xs text-gray-500 mt-2">Semantic pruning & diffing</p>
-      </div>
-
-      <!-- Stat 3: Firewall Rules -->
-      <div class="glass p-6 rounded-2xl transition duration-300 hover:scale-[1.02] hover:border-brand-500/20">
-        <div class="flex items-center justify-between mb-4">
-          <span class="text-sm font-medium text-gray-400">Active Rules</span>
-          <div class="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
-          </div>
-        </div>
-        <div class="text-3xl font-bold tracking-tight text-white" x-text="rulesCount">5</div>
-        <p class="text-xs text-gray-500 mt-2">Allowlist/Blocklist patterns</p>
-      </div>
-
-      <!-- Stat 4: CPU Overhead -->
-      <div class="glass p-6 rounded-2xl transition duration-300 hover:scale-[1.02] hover:border-brand-500/20">
-        <div class="flex items-center justify-between mb-4">
-          <span class="text-sm font-medium text-gray-400">Proxy Latency</span>
-          <div class="p-2 bg-yellow-500/10 text-yellow-400 rounded-xl">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-        </div>
-        <div class="text-3xl font-bold tracking-tight text-white">&lt;1.2ms</div>
-        <p class="text-xs text-gray-500 mt-2">Zero-allocation buffer pools</p>
       </div>
     </div>
 
-    <!-- Dashboard Content Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      
-      <!-- Left 2 Cols: Live Log stream & System Configuration -->
-      <div class="lg:col-span-2 space-y-8">
-        
-        <!-- Live Console Terminal -->
-        <div class="glass rounded-2xl overflow-hidden">
-          <div class="bg-gray-900/80 px-6 py-4 border-b border-white/5 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-red-500"></span>
-              <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
-              <span class="w-3 h-3 rounded-full bg-green-500"></span>
-              <span class="text-sm font-semibold ml-2 font-mono text-gray-400">console.log</span>
-            </div>
-            <button @click="clearLogs" class="text-xs text-gray-500 hover:text-white transition">Clear Console</button>
+    <!-- Stats grid -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <template x-for="card in statCards">
+        <div class="glass stat-card rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-semibold uppercase tracking-wider text-gray-500" x-text="card.label"></span>
+            <span class="text-lg" x-text="card.icon"></span>
           </div>
-          <div class="p-6 bg-black/40 font-mono text-xs text-green-400 space-y-2 h-80 overflow-y-auto" id="console-output">
-            <template x-for="log in logs">
-              <div class="flex items-start gap-4">
-                <span class="text-gray-600 select-none" x-text="log.time"></span>
-                <span :class="{'text-yellow-400': log.level === 'warn', 'text-red-400': log.level === 'error', 'text-green-400': log.level === 'info'}" x-text="log.text"></span>
-              </div>
-            </template>
-          </div>
+          <div class="text-2xl font-bold counter" :class="card.color" x-text="card.value"></div>
+          <div class="text-xs text-gray-600 mt-1" x-text="card.sub"></div>
         </div>
+      </template>
+    </div>
 
-        <!-- Firewall Evaluation Logs -->
-        <div class="glass rounded-2xl p-6">
-          <h2 class="text-lg font-bold text-white mb-4">Firewall Evaluation Logs</h2>
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="border-b border-white/5 text-gray-400 text-sm">
-                  <th class="pb-3">Timestamp</th>
-                  <th class="pb-3">Target URL</th>
-                  <th class="pb-3">Result</th>
-                  <th class="pb-3">Reason</th>
+    <!-- Bottom two-col grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Active Sessions Table -->
+      <div class="lg:col-span-2 glass rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-base font-semibold text-white">Active Sessions</h2>
+          <span class="text-xs font-mono text-gray-500 bg-white/5 px-2 py-0.5 rounded-full" x-text="sessions.length + ' session(s)'"></span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="border-b border-white/5 text-gray-500">
+                <th class="pb-3 pr-4">Session ID</th>
+                <th class="pb-3 pr-4">URL</th>
+                <th class="pb-3 pr-4">Tokens Saved</th>
+                <th class="pb-3 pr-4">Reduction</th>
+                <th class="pb-3">Status</th>
+              </tr>
+            </thead>
+            <tbody class="font-mono divide-y divide-white/5">
+              <template x-if="sessions.length === 0">
+                <tr><td colspan="5" class="py-6 text-center text-gray-600">No sessions yet — start browsing</td></tr>
+              </template>
+              <template x-for="s in sessions" :key="s.id">
+                <tr class="text-gray-300">
+                  <td class="py-3 pr-4 text-gray-500" x-text="s.id.slice(0,8) + '...'"></td>
+                  <td class="py-3 pr-4 max-w-[200px] truncate" :title="s.url" x-text="s.url || '—'"></td>
+                  <td class="py-3 pr-4 text-brand-400" x-text="formatCount(s.raw_tokens - s.pruned_tokens)"></td>
+                  <td class="py-3 pr-4 text-emerald-400" x-text="formatPct(s.reduction_pct) + '%'"></td>
+                  <td class="py-3">
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                          :class="s.active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gray-500/15 text-gray-500'"
+                          x-text="s.active ? 'LIVE' : 'DONE'"></span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody class="text-xs font-mono">
-                <template x-for="eval in firewalls">
-                  <tr class="border-b border-white/5 text-gray-300">
-                    <td class="py-3 text-gray-500" x-text="eval.time"></td>
-                    <td class="py-3 max-w-xs truncate" :title="eval.url" x-text="eval.url"></td>
-                    <td class="py-3">
-                      <span class="px-2 py-0.5 rounded text-[10px] font-bold"
-                            :class="eval.allowed ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'"
-                            x-text="eval.allowed ? 'ALLOWED' : 'BLOCKED'"></span>
-                    </td>
-                    <td class="py-3 text-gray-400" x-text="eval.reason"></td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </div>
+              </template>
+            </tbody>
+          </table>
         </div>
-
       </div>
 
-      <!-- Right 1 Col: Settings / Controls -->
-      <div class="space-y-8">
-        
-        <!-- System info card -->
-        <div class="glass p-6 rounded-2xl relative overflow-hidden">
-          <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl"></div>
-          <h2 class="text-lg font-bold text-white mb-6">Engine Configuration</h2>
-          
-          <div class="space-y-4">
+      <!-- Config panel -->
+      <div class="glass rounded-2xl p-6 space-y-5">
+        <h2 class="text-base font-semibold text-white">Engine Config</h2>
+        <div class="space-y-3 text-sm">
+          <div>
+            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">MCP Transport</div>
+            <div class="font-mono bg-black/20 rounded-lg px-3 py-2 text-brand-400 border border-white/5" x-text="stats.mcp_transport || 'stdio'"></div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">CDP Proxy</div>
+            <div class="font-mono bg-black/20 rounded-lg px-3 py-2 border border-white/5" x-text="stats.proxy_addr ? 'ws://' + stats.proxy_addr : '—'"></div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-semibold uppercase text-gray-500 tracking-wider mb-1">CDP Proxy Address</label>
-              <div class="bg-black/20 font-mono text-sm px-3 py-2 rounded-xl border border-white/5" x-text="'ws://' + status.proxy_addr">ws://:8443</div>
+              <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Allowlist</div>
+              <div class="font-mono bg-black/20 rounded-lg px-3 py-2 border border-white/5 text-emerald-400" x-text="(stats.allowlist_count || 0) + ' rules'"></div>
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase text-gray-500 tracking-wider mb-1">Target Browser</label>
-              <div class="bg-black/20 font-mono text-sm px-3 py-2 rounded-xl border border-white/5 truncate" :title="status.browser_url" x-text="status.browser_url">ws://localhost:9222</div>
+              <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Blocklist</div>
+              <div class="font-mono bg-black/20 rounded-lg px-3 py-2 border border-white/5 text-red-400" x-text="(stats.blocklist_count || 0) + ' rules'"></div>
             </div>
-            <div>
-              <label class="block text-xs font-semibold uppercase text-gray-500 tracking-wider mb-1">MCP Transport</label>
-              <div class="bg-black/20 font-mono text-sm px-3 py-2 rounded-xl border border-white/5" x-text="status.mcp_transport">stdio</div>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold uppercase text-gray-500 tracking-wider mb-1">Pruning Output Format</label>
-              <div class="bg-black/20 font-mono text-sm px-3 py-2 rounded-xl border border-white/5">Markdown</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Config Watcher</div>
+            <div class="flex items-center gap-2 font-mono bg-black/20 rounded-lg px-3 py-2 border border-white/5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>
+              <span class="text-emerald-400 text-xs">fsnotify active</span>
             </div>
           </div>
         </div>
 
-        <!-- Hot Reload Sandbox trigger (visual feedback) -->
-        <div class="glass p-6 rounded-2xl">
-          <h2 class="text-lg font-bold text-white mb-4">Development Sandbox</h2>
-          <p class="text-sm text-gray-400 mb-6">SurfaceProxy monitors <code class="bg-gray-800 px-1 py-0.5 rounded text-white font-mono text-xs">surface-proxy.json</code> dynamically. Save edits in your IDE to watch rules hot-reload below.</p>
-          
-          <div class="flex items-center justify-between border-t border-white/5 pt-4">
-            <span class="text-xs text-gray-500">Watcher active</span>
-            <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-500/10 text-brand-500">fsnotify running</span>
+        <!-- Byte throughput bar -->
+        <div class="pt-2">
+          <div class="flex justify-between text-xs text-gray-500 mb-1.5">
+            <span>Byte throughput</span>
+            <span x-text="formatBytes(stats.total_pruned_bytes || 0) + ' / ' + formatBytes(stats.total_raw_bytes || 0)"></span>
           </div>
+          <div class="h-2 bg-white/5 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-brand-600 to-emerald-500 rounded-full transition-all duration-500"
+                 :style="'width:' + Math.min(100, (stats.total_pruned_bytes / Math.max(1, stats.total_raw_bytes)) * 100) + '%'"></div>
+          </div>
+          <div class="text-[10px] text-gray-600 mt-1">Pruned / Raw HTML — lower is better</div>
         </div>
-
       </div>
+
     </div>
   </main>
 
-  <!-- Footer -->
-  <footer class="border-t border-white/5 py-6 px-6 glass mt-12 text-center text-xs text-gray-500">
-    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-      <p>&copy; 2026 Sentry Surface. All rights reserved.</p>
-      <div class="flex gap-4">
-        <a href="#" class="hover:text-white transition">Documentation</a>
-        <span class="text-white/10">|</span>
-        <a href="#" class="hover:text-white transition">Github</a>
-      </div>
-    </div>
+  <footer class="border-t border-white/5 mt-12 py-5 text-center text-xs text-gray-600">
+    <p>SurfaceProxy — &copy; 2026 Sentry Surface Inc. — <a href="https://sentrysurface.io" class="hover:text-gray-400 transition">sentrysurface.io</a></p>
   </footer>
 
   <script>
     function dashboard() {
       return {
-        status: {
-          status: false,
-          proxy_addr: ":8443",
-          browser_url: "ws://localhost:9222",
-          mcp_transport: "stdio"
+        connected: false,
+        stats: {},
+        sessions: [],
+        ws: null,
+
+        get statCards() {
+          return [
+            { label:'Active Sessions', icon:'⚡', value: this.stats.active_sessions ?? 0, color:'text-brand-400', sub:'Goroutine-isolated' },
+            { label:'Total Prune Ops', icon:'✂️', value: this.formatCount(this.stats.total_prune_ops ?? 0), color:'text-blue-400', sub:'DOM tokenizations' },
+            { label:'Raw Tokens', icon:'📄', value: this.formatCount(this.stats.total_raw_tokens ?? 0), color:'text-gray-300', sub:'Before pruning' },
+            { label:'Pruned Tokens', icon:'🗜️', value: this.formatCount(this.stats.total_pruned_tokens ?? 0), color:'text-emerald-400', sub:'After pruning' },
+          ]
         },
-        sessionsCount: 0,
-        reductionRate: 85.1,
-        rulesCount: 5,
-        logs: [],
-        firewalls: [],
+
         init() {
-          this.fetchStatus();
-          setInterval(() => this.fetchStatus(), 2000);
-          this.generateMockLogs();
-          setInterval(() => this.addMockLog(), 5000);
+          this.connect()
+          this.fetchSessions()
+          setInterval(() => this.fetchSessions(), 3000)
         },
-        fetchStatus() {
-          fetch('/api/status')
-            .then(res => res.json())
-            .then(data => {
-              this.status = data;
-              this.status.status = true;
-              this.rulesCount = (data.allowlist_pattern || 0) + (data.blocklist_pattern || 0);
-            })
-            .catch(() => {
-              this.status.status = false;
-            });
-        },
-        generateMockLogs() {
-          const now = new Date().toLocaleTimeString();
-          this.logs = [
-            { time: now, level: 'info', text: '[INIT] Bootstrapping SurfaceProxy Core Engine...' },
-            { time: now, level: 'info', text: '[INIT] Pre-compiling firewall rules: 3 allowlist patterns, 2 blocklist patterns loaded.' },
-            { time: now, level: 'info', text: '[INIT] sync.Pool byte block pools warmed up.' },
-            { time: now, level: 'info', text: '[PROXY] CDP Proxy listening on ws://:8443' },
-            { time: now, level: 'info', text: '[MCP] stdio JSON-RPC server listening' }
-          ];
 
-          this.firewalls = [
-            { time: now, url: 'https://github.com/sentrysurface/surfaceproxy-core', allowed: true, reason: 'Matches allowlist: github.com' },
-            { time: now, url: 'https://doubleclick.net/ad-tracker', allowed: false, reason: 'Matches blocklist: doubleclick.net' }
-          ];
-          this.sessionsCount = 1;
-        },
-        addMockLog() {
-          const now = new Date().toLocaleTimeString();
-          const messages = [
-            { level: 'info', text: '[PROXY] Connection upgraded successfully.' },
-            { level: 'info', text: '[PRUNER] Tokenized HTML document: stripped script, style, and svg nodes.' },
-            { level: 'info', text: '[DIFF] Computed structural DOM line-diff: 42 lines added, 0 lines removed.' },
-            { level: 'info', text: '[FIREWALL] Evaluated destination URL: Allowed.' }
-          ];
-          const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-          randomMsg.time = now;
-          this.logs.push(randomMsg);
-          if (this.logs.length > 50) this.logs.shift();
+        connect() {
+          const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+          this.ws = new WebSocket(`${proto}://${location.host}/api/stream`)
 
-          // Scroll to bottom of terminal
-          setTimeout(() => {
-            const el = document.getElementById('console-output');
-            if (el) el.scrollTop = el.scrollHeight;
-          }, 50);
+          this.ws.onopen = () => { this.connected = true }
+          this.ws.onclose = () => {
+            this.connected = false
+            setTimeout(() => this.connect(), 3000)
+          }
+          this.ws.onerror = () => { this.connected = false }
+          this.ws.onmessage = (e) => {
+            try { this.stats = JSON.parse(e.data) } catch {}
+          }
         },
-        clearLogs() {
-          this.logs = [];
+
+        fetchSessions() {
+          fetch('/api/sessions')
+            .then(r => r.json())
+            .then(data => { this.sessions = data || [] })
+            .catch(() => {})
+        },
+
+        formatCount(n) {
+          n = parseInt(n) || 0
+          if (n >= 1_000_000) return (n/1_000_000).toFixed(2) + 'M'
+          if (n >= 1_000) return (n/1_000).toFixed(1) + 'K'
+          return n.toString()
+        },
+
+        formatPct(n) {
+          return (parseFloat(n) || 0).toFixed(1)
+        },
+
+        formatBytes(b) {
+          b = parseInt(b) || 0
+          if (b >= 1<<20) return (b/(1<<20)).toFixed(2) + ' MB'
+          if (b >= 1<<10) return (b/(1<<10)).toFixed(2) + ' KB'
+          return b + ' B'
         }
       }
     }

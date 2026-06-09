@@ -167,3 +167,8 @@ func (a *App) Close() {
 		a.loader.Close()
 	}
 }
+
+// Ledger returns the telemetry ledger for external consumers (e.g. the tray daemon).
+func (a *App) Ledger() *telemetry.Ledger {
+	return a.ledger
+}
