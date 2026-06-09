@@ -1,6 +1,6 @@
 # SurfaceProxy
 
-SurfaceProxy is an ultra-low latency, non-blocking proxy engine written in Go. It sits inline between AI Agent clients and a target browser, intercepting Chrome DevTools Protocol (CDP) frames to prune the DOM and optimize the context returned to LLMs.
+SurfaceProxy is an ultra-low latency, non-blocking proxy engine written in Go. It sits inline between AI Agent clients and a target browser, intercepting Chrome DevTools Protocol (CDP) frames to prune the DOM and optimize the context returned to LLMs. For more information: https://proxy.sentrysurface.io/
 
 ## Core Architecture
 
@@ -40,3 +40,9 @@ SurfaceProxy is an ultra-low latency, non-blocking proxy engine written in Go. I
 ## License
 
 Business Source License 1.1 (BSL-LICENSE.txt).
+
+## Feedback & Support
+
+For issues, feedback, and inquiries, please contact support@sentrysurface.io or visit https://sentrysurface.io/contact
+
+
