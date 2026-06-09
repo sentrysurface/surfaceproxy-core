@@ -12,7 +12,18 @@ import (
 	"github.com/sentrysurface/surface-proxy/internal/app"
 )
 
-const version = "0.1.0-alpha"
+// Build metadata — injected via -ldflags at release time.
+// Defaults to development values when built without ldflags.
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildDate = "unknown"
+)
+
+func buildInfo() string {
+	return fmt.Sprintf("%s (commit %s, built %s)", version, commit, buildDate)
+}
+
 
 func main() {
 	// Surface-proxy supports two top-level invocation modes:
@@ -35,11 +46,11 @@ func runDaemon(args []string) {
 	fs.Parse(args)
 
 	if *showVersion {
-		fmt.Printf("surface-proxy %s\n", version)
+		fmt.Printf("surface-proxy %s\n", buildInfo())
 		os.Exit(0)
 	}
 
-	log.Printf("[INIT] SurfaceProxy %s — Bootstrapping core engine using policy: %s", version, *configPath)
+	log.Printf("[INIT] SurfaceProxy %s — Bootstrapping core engine using policy: %s", buildInfo(), *configPath)
 
 	a, err := app.NewApp(*configPath, app.ModeFull)
 	if err != nil {
@@ -84,7 +95,7 @@ func runMCPMode(args []string) {
 	// In mcp-mode, stdout is owned by the JSON-RPC protocol.
 	// All log output must go to stderr so it doesn't corrupt the RPC stream.
 	log.SetOutput(os.Stderr)
-	log.Printf("[MCP] surface-proxy %s — starting in MCP stdio mode, config: %s", version, *configPath)
+	log.Printf("[MCP] surface-proxy %s — starting in MCP stdio mode, config: %s", buildInfo(), *configPath)
 
 	a, err := app.NewApp(*configPath, app.ModeMCPOnly)
 	if err != nil {
