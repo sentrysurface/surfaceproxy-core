@@ -137,7 +137,6 @@ docker run -p 8443:8443 -p 8080:8080 surface-proxy-dev
 
 Business Source License 1.1 — see [BSL-LICENSE.txt](BSL-LICENSE.txt).
 
-Converts to Apache 2.0 on 2029-06-09.
 
 ## Feedback & Support
 
