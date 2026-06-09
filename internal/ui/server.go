@@ -44,14 +44,14 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		stats := s.buildStatusPayload()
-		json.NewEncoder(w).Encode(stats)
+		_ = json.NewEncoder(w).Encode(stats)
 	})
 
 	// REST: active session list
 	mux.HandleFunc("/api/sessions", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		sessions := s.buildSessionsPayload()
-		json.NewEncoder(w).Encode(sessions)
+		_ = json.NewEncoder(w).Encode(sessions)
 	})
 
 	// WebSocket: push live telemetry updates every second
@@ -65,7 +65,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	util.SafeGo(func() {
 		<-ctx.Done()
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 	})
 
 	log.Printf("[UI] Dashboard listening on http://localhost%s", addr)
@@ -86,17 +86,14 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			payload := s.buildStatusPayload()
-			data, err := json.Marshal(payload)
-			if err != nil {
-				return
-			}
-			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-				return
-			}
+	for range ticker.C {
+		payload := s.buildStatusPayload()
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return
+		}
+		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			return
 		}
 	}
 }

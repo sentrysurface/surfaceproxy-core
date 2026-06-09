@@ -82,7 +82,7 @@ func (s *Session) Start(ctx context.Context) {
 								},
 							}
 							respData, _ := json.Marshal(errResp)
-							s.agentConn.WriteMessage(websocket.TextMessage, respData)
+							_ = s.agentConn.WriteMessage(websocket.TextMessage, respData)
 							continue
 						}
 					}

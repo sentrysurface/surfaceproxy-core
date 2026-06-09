@@ -96,7 +96,7 @@ func (s *Server) startWebSocket(ctx context.Context) error {
 
 	util.SafeGo(func() {
 		<-ctx.Done()
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 	})
 
 	log.Printf("[MCP] MCP WebSocket server listening on ws://%s", s.cfg.MCPListenAddr)
@@ -127,7 +127,7 @@ func (s *Server) handleWSConnection(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		sessionServer.handleMessage(message, func(data []byte) {
-			conn.WriteMessage(websocket.TextMessage, data)
+			_ = conn.WriteMessage(websocket.TextMessage, data)
 		})
 	}
 }

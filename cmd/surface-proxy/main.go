@@ -36,7 +36,7 @@ func runDaemon(args []string) {
 	fs := flag.NewFlagSet("surface-proxy", flag.ExitOnError)
 	configPath := fs.String("config", "surface-proxy.json", "Path to configuration policy file")
 	showVersion := fs.Bool("version", false, "Print version and exit")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *showVersion {
 		fmt.Printf("surface-proxy %s\n", buildInfo())
@@ -83,7 +83,7 @@ func runDaemon(args []string) {
 func runMCPMode(args []string) {
 	fs := flag.NewFlagSet("surface-proxy mcp-mode", flag.ExitOnError)
 	configPath := fs.String("config", "surface-proxy.json", "Path to configuration policy file")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	// In mcp-mode, stdout is owned by the JSON-RPC protocol.
 	// All log output must go to stderr so it doesn't corrupt the RPC stream.

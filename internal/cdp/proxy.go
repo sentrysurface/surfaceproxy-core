@@ -70,7 +70,7 @@ func (p *Proxy) ListenAndServe(ctx context.Context) error {
 
 	util.SafeGo(func() {
 		<-ctx.Done()
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 	})
 
 	log.Printf("[PROXY] CDP Proxy listening on ws://%s", p.cfg.ListenAddr)
