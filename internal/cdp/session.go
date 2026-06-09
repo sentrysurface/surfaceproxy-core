@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
