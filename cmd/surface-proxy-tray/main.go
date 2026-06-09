@@ -12,16 +12,15 @@ import (
 
 	"github.com/sentrysurface/surface-proxy/internal/app"
 	"github.com/sentrysurface/surface-proxy/internal/tray"
+	"github.com/sentrysurface/surface-proxy/internal/version"
 )
-
-const version = "0.1.0-alpha"
 
 func main() {
 	fs := flag.NewFlagSet("surface-proxy-tray", flag.ExitOnError)
 	configPath := fs.String("config", "surface-proxy.json", "Path to configuration policy file")
 	fs.Parse(os.Args[1:])
 
-	log.Printf("[TRAY] SurfaceProxy %s — starting system tray daemon", version)
+	log.Printf("[TRAY] SurfaceProxy %s — starting system tray daemon", version.Version)
 
 	a, err := app.NewApp(*configPath, app.ModeFull)
 	if err != nil {
@@ -47,7 +46,7 @@ func main() {
 
 	// Run the tray on the main goroutine (required by most OS tray APIs)
 	tray.Run(tray.Options{
-		Version:      version,
+		Version:      version.Version,
 		DashboardURL: "http://localhost:8080",
 		Ledger:       a.Ledger(),
 		OnQuit:       cancel,

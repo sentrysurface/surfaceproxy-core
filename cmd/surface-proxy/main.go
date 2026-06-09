@@ -10,18 +10,11 @@ import (
 	"syscall"
 
 	"github.com/sentrysurface/surface-proxy/internal/app"
-)
-
-// Build metadata — injected via -ldflags at release time.
-// Defaults to development values when built without ldflags.
-var (
-	version   = "dev"
-	commit    = "unknown"
-	buildDate = "unknown"
+	"github.com/sentrysurface/surface-proxy/internal/version"
 )
 
 func buildInfo() string {
-	return fmt.Sprintf("%s (commit %s, built %s)", version, commit, buildDate)
+	return version.BuildInfo()
 }
 
 

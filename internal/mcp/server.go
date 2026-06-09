@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/sentrysurface/surface-proxy/internal/config"
 	"github.com/sentrysurface/surface-proxy/internal/util"
+	"github.com/sentrysurface/surface-proxy/internal/version"
 )
 
 // Server implements the MCP 2024-11-05 server protocol over stdio or WebSocket.
@@ -209,7 +210,7 @@ func (s *Server) handleInitialize(req Request) *Response {
 		},
 		ServerInfo: AppInfo{
 			Name:    "SurfaceProxy",
-			Version: "0.1.0-alpha",
+			Version: version.Version,
 		},
 		Instructions: "SurfaceProxy is a local AI web-browsing proxy. Use 'browse' to navigate to a URL and receive a token-optimised Markdown snapshot. Use 'click' and 'type' to interact with page elements. Use 'getDOM' to retrieve the current page state with structural diffing.",
 	}
