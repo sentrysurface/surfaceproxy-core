@@ -1,0 +1,22 @@
+{
+  "listen_addr": ":8443",
+  "target_browser_url": "ws://localhost:9222",
+  "mcp_transport": "stdio",
+  "mcp_listen_addr": ":8444",
+  "firewall": {
+    "allowlist": [
+      "^https?://([a-zA-Z0-9-]+\\.)*github\\.com(/.*)?$",
+      "^https?://([a-zA-Z0-9-]+\\.)*google\\.com(/.*)?$",
+      "^https?://([a-zA-Z0-9-]+\\.)*wikipedia\\.org(/.*)?$"
+    ],
+    "blocklist": [
+      "^https?://([a-zA-Z0-9-]+\\.)*doubleclick\\.net(/.*)?$",
+      "^https?://([a-zA-Z0-9-]+\\.)*adservice\\.google\\.com(/.*)?$"
+    ]
+  },
+  "pruning": {
+    "output_format": "markdown",
+    "max_tokens": 4096,
+    "strip_tags": ["script", "style", "svg", "noscript", "iframe"]
+  }
+}

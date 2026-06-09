@@ -1,0 +1,32 @@
+# Binaries
+/surface-proxy
+/surface-proxy.exe
+*.exe
+*.out
+
+# Vendor
+vendor/
+
+# Test cache
+.cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+bin/
+
+# Go workspace
+go.work
+go.work.sum
+
+# Local config overrides (keep the template, not secrets)
+surface-proxy.local.json

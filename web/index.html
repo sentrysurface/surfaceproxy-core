@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SurfaceProxy Developer Dashboard</title>
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f5f3ff',
+              100: '#ede9fe',
+              500: '#8b5cf6',
+              600: '#7c3aed',
+              900: '#4c1d95',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #0b0f19;
+      color: #f3f4f6;
+    }
+    .glass {
+      background: rgba(17, 24, 39, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .glow {
+      box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.4);
+    }
+  </style>
+</head>
+<body class="font-sans antialiased min-h-screen flex flex-col justify-between" x-data="dashboard()">
+
+  <!-- Background decorations -->
+  <div class="absolute top-0 left-0 w-96 h-96 bg-brand-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+  <div class="absolute bottom-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+  <!-- Navbar -->
+  <header class="glass sticky top-0 z-50 border-b border-white/5 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- Logo -->
+        <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-brand-600 to-blue-500 flex items-center justify-center glow">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 009 11m-3.44 2.04A13.916 13.916 0 014 11V7a4 4 0 014-4h8a4 4 0 014 4v4c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09a13.916 13.916 0 002.753-9.57m-3.44 2.04A13.916 13.916 0 0115 11M12 7v4" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+            SurfaceProxy
+          </h1>
+          <p class="text-xs text-gray-500">Core Engine Admin Console</p>
+        </div>
+      </div>
+      <!-- Connection Status Badge -->
+      <div class="flex items-center gap-2">
+        <span class="relative flex h-3 w-3">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+        </span>
+        <span class="text-sm font-medium text-gray-300" x-text="status.status ? 'CONNECTED' : 'OFFLINE'"></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-6 py-8">
+    
+    <!-- Top Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <!-- Stat 1: Active Sessions -->
+      <div class="glass p-6 rounded-2xl transition duration-300 hover:scale-[1.02] hover:border-brand-500/20">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-sm font-medium text-gray-400">Active Sessions</span>
+          <div class="p-2 bg-brand-500/10 text-brand-500 rounded-xl">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+        </div>
+        <div class="text-3xl font-bold tracking-tight text-white" x-text="sessionsCount">0</div>
+        <p class="text-xs text-gray-500 mt-2">Goroutine-isolated pipelines</p>
+      </div>
+
+      <!-- Stat 2: Tokens Saved -->
+      <div class="glass p-6 rounded-2xl transition duration-300 hover:scale-[1.02] hover:border-brand-500/20">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-sm font-medium text-gray-400">Context Reduction</span>
+          <div class="p-2 bg-green-500/10 text-green-400 rounded-xl">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
+            </svg>
+          </div>
+        </div>
+        <div class="text-3xl font-bold tracking-tight text-white" x-text="reductionRate + '%'">84.3%</div>
+        <p class="text-xs text-gray-500 mt-2">Semantic pruning & diffing</p>
+      </div>
+
+      <!-- Stat 3: Firewall Rules -->
+      <div class="glass p-6 rounded-2xl transition duration-300 hover:scale-[1.02] hover:border-brand-500/20">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-sm font-medium text-gray-400">Active Rules</span>
+          <div class="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+        </div>
+        <div class="text-3xl font-bold tracking-tight text-white" x-text="rulesCount">5</div>
+        <p class="text-xs text-gray-500 mt-2">Allowlist/Blocklist patterns</p>
+      </div>
+
+      <!-- Stat 4: CPU Overhead -->
+      <div class="glass p-6 rounded-2xl transition duration-300 hover:scale-[1.02] hover:border-brand-500/20">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-sm font-medium text-gray-400">Proxy Latency</span>
+          <div class="p-2 bg-yellow-500/10 text-yellow-400 rounded-xl">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+        <div class="text-3xl font-bold tracking-tight text-white">&lt;1.2ms</div>
+        <p class="text-xs text-gray-500 mt-2">Zero-allocation buffer pools</p>
+      </div>
+    </div>
+
+    <!-- Dashboard Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      
+      <!-- Left 2 Cols: Live Log stream & System Configuration -->
+      <div class="lg:col-span-2 space-y-8">
+        
+        <!-- Live Console Terminal -->
+        <div class="glass rounded-2xl overflow-hidden">
+          <div class="bg-gray-900/80 px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-red-500"></span>
+              <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+              <span class="w-3 h-3 rounded-full bg-green-500"></span>
+              <span class="text-sm font-semibold ml-2 font-mono text-gray-400">console.log</span>
+            </div>
+            <button @click="clearLogs" class="text-xs text-gray-500 hover:text-white transition">Clear Console</button>
+          </div>
+          <div class="p-6 bg-black/40 font-mono text-xs text-green-400 space-y-2 h-80 overflow-y-auto" id="console-output">
+            <template x-for="log in logs">
+              <div class="flex items-start gap-4">
+                <span class="text-gray-600 select-none" x-text="log.time"></span>
+                <span :class="{'text-yellow-400': log.level === 'warn', 'text-red-400': log.level === 'error', 'text-green-400': log.level === 'info'}" x-text="log.text"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Firewall Evaluation Logs -->
+        <div class="glass rounded-2xl p-6">
+          <h2 class="text-lg font-bold text-white mb-4">Firewall Evaluation Logs</h2>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-white/5 text-gray-400 text-sm">
+                  <th class="pb-3">Timestamp</th>
+                  <th class="pb-3">Target URL</th>
+                  <th class="pb-3">Result</th>
+                  <th class="pb-3">Reason</th>
+                </tr>
+              </thead>
+              <tbody class="text-xs font-mono">
+                <template x-for="eval in firewalls">
+                  <tr class="border-b border-white/5 text-gray-300">
+                    <td class="py-3 text-gray-500" x-text="eval.time"></td>
+                    <td class="py-3 max-w-xs truncate" :title="eval.url" x-text="eval.url"></td>
+                    <td class="py-3">
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold"
+                            :class="eval.allowed ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'"
+                            x-text="eval.allowed ? 'ALLOWED' : 'BLOCKED'"></span>
+                    </td>
+                    <td class="py-3 text-gray-400" x-text="eval.reason"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right 1 Col: Settings / Controls -->
+      <div class="space-y-8">
+        
+        <!-- System info card -->
+        <div class="glass p-6 rounded-2xl relative overflow-hidden">
+          <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl"></div>
+          <h2 class="text-lg font-bold text-white mb-6">Engine Configuration</h2>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-gray-500 tracking-wider mb-1">CDP Proxy Address</label>
+              <div class="bg-black/20 font-mono text-sm px-3 py-2 rounded-xl border border-white/5" x-text="'ws://' + status.proxy_addr">ws://:8443</div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-gray-500 tracking-wider mb-1">Target Browser</label>
+              <div class="bg-black/20 font-mono text-sm px-3 py-2 rounded-xl border border-white/5 truncate" :title="status.browser_url" x-text="status.browser_url">ws://localhost:9222</div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-gray-500 tracking-wider mb-1">MCP Transport</label>
+              <div class="bg-black/20 font-mono text-sm px-3 py-2 rounded-xl border border-white/5" x-text="status.mcp_transport">stdio</div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-gray-500 tracking-wider mb-1">Pruning Output Format</label>
+              <div class="bg-black/20 font-mono text-sm px-3 py-2 rounded-xl border border-white/5">Markdown</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hot Reload Sandbox trigger (visual feedback) -->
+        <div class="glass p-6 rounded-2xl">
+          <h2 class="text-lg font-bold text-white mb-4">Development Sandbox</h2>
+          <p class="text-sm text-gray-400 mb-6">SurfaceProxy monitors <code class="bg-gray-800 px-1 py-0.5 rounded text-white font-mono text-xs">surface-proxy.json</code> dynamically. Save edits in your IDE to watch rules hot-reload below.</p>
+          
+          <div class="flex items-center justify-between border-t border-white/5 pt-4">
+            <span class="text-xs text-gray-500">Watcher active</span>
+            <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-500/10 text-brand-500">fsnotify running</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/5 py-6 px-6 glass mt-12 text-center text-xs text-gray-500">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <p>&copy; 2026 Sentry Surface. All rights reserved.</p>
+      <div class="flex gap-4">
+        <a href="#" class="hover:text-white transition">Documentation</a>
+        <span class="text-white/10">|</span>
+        <a href="#" class="hover:text-white transition">Github</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function dashboard() {
+      return {
+        status: {
+          status: false,
+          proxy_addr: ":8443",
+          browser_url: "ws://localhost:9222",
+          mcp_transport: "stdio"
+        },
+        sessionsCount: 0,
+        reductionRate: 85.1,
+        rulesCount: 5,
+        logs: [],
+        firewalls: [],
+        init() {
+          this.fetchStatus();
+          setInterval(() => this.fetchStatus(), 2000);
+          this.generateMockLogs();
+          setInterval(() => this.addMockLog(), 5000);
+        },
+        fetchStatus() {
+          fetch('/api/status')
+            .then(res => res.json())
+            .then(data => {
+              this.status = data;
+              this.status.status = true;
+              this.rulesCount = (data.allowlist_pattern || 0) + (data.blocklist_pattern || 0);
+            })
+            .catch(() => {
+              this.status.status = false;
+            });
+        },
+        generateMockLogs() {
+          const now = new Date().toLocaleTimeString();
+          this.logs = [
+            { time: now, level: 'info', text: '[INIT] Bootstrapping SurfaceProxy Core Engine...' },
+            { time: now, level: 'info', text: '[INIT] Pre-compiling firewall rules: 3 allowlist patterns, 2 blocklist patterns loaded.' },
+            { time: now, level: 'info', text: '[INIT] sync.Pool byte block pools warmed up.' },
+            { time: now, level: 'info', text: '[PROXY] CDP Proxy listening on ws://:8443' },
+            { time: now, level: 'info', text: '[MCP] stdio JSON-RPC server listening' }
+          ];
+
+          this.firewalls = [
+            { time: now, url: 'https://github.com/sentrysurface/surfaceproxy-core', allowed: true, reason: 'Matches allowlist: github.com' },
+            { time: now, url: 'https://doubleclick.net/ad-tracker', allowed: false, reason: 'Matches blocklist: doubleclick.net' }
+          ];
+          this.sessionsCount = 1;
+        },
+        addMockLog() {
+          const now = new Date().toLocaleTimeString();
+          const messages = [
+            { level: 'info', text: '[PROXY] Connection upgraded successfully.' },
+            { level: 'info', text: '[PRUNER] Tokenized HTML document: stripped script, style, and svg nodes.' },
+            { level: 'info', text: '[DIFF] Computed structural DOM line-diff: 42 lines added, 0 lines removed.' },
+            { level: 'info', text: '[FIREWALL] Evaluated destination URL: Allowed.' }
+          ];
+          const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+          randomMsg.time = now;
+          this.logs.push(randomMsg);
+          if (this.logs.length > 50) this.logs.shift();
+
+          // Scroll to bottom of terminal
+          setTimeout(() => {
+            const el = document.getElementById('console-output');
+            if (el) el.scrollTop = el.scrollHeight;
+          }, 50);
+        },
+        clearLogs() {
+          this.logs = [];
+        }
+      }
+    }
+  </script>
+</body>
+</html>

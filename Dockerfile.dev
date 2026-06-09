@@ -1,0 +1,18 @@
+FROM golang:1.23-alpine AS development
+
+RUN apk add --no-cache git chromium chromium-chromedriver build-base
+
+WORKDIR /app
+
+COPY go.mod ./
+RUN go mod tidy
+
+COPY . .
+
+# Build the system daemon directly for validation loops
+RUN go build -o /usr/local/bin/surface-proxy ./cmd/surface-proxy
+
+EXPOSE 8443
+
+CMD ["surface-proxy", "--config", "/app/surface-proxy.json"]
+
