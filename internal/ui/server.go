@@ -65,6 +65,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// ── Integrations ──────────────────────────────────────────────────────────
 	mux.HandleFunc("/api/integrations", s.handleIntegrations)
+	mux.HandleFunc("/api/integrations/register", s.handleRegisterIntegration)
 
 	addr := ":8080"
 	server := &http.Server{
@@ -414,4 +415,92 @@ func claudeDesktopMCPPath() string {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+type registerRequest struct {
+	Name string `json:"name"`
+}
+
+func (s *Server) handleRegisterIntegration(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req registerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+		http.Error(w, `{"error":"invalid integration name"}`, http.StatusBadRequest)
+		return
+	}
+
+	var path string
+	switch req.Name {
+	case "Cursor":
+		path = cursorMCPPath()
+	case "VS Code":
+		path = vscodeMCPPath()
+	case "Claude Desktop":
+		path = claudeDesktopMCPPath()
+	default:
+		http.Error(w, `{"error":"unknown integration"}`, http.StatusBadRequest)
+		return
+	}
+
+	if path == "" {
+		http.Error(w, `{"error":"integration config path not resolved"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if err := s.registerMCP(path); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"failed to register: %s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "registered"})
+}
+
+func (s *Server) registerMCP(path string) error {
+	exePath, err := os.Executable()
+	if err != nil {
+		exePath = "surface-proxy"
+	}
+
+	// Read existing config if it exists
+	var data map[string]interface{}
+	content, err := os.ReadFile(path)
+	if err == nil {
+		_ = json.Unmarshal(content, &data)
+	}
+
+	if data == nil {
+		data = make(map[string]interface{})
+	}
+
+	mcpServersRaw, ok := data["mcpServers"]
+	var mcpServers map[string]interface{}
+	if ok {
+		mcpServers, _ = mcpServersRaw.(map[string]interface{})
+	}
+	if mcpServers == nil {
+		mcpServers = make(map[string]interface{})
+		data["mcpServers"] = mcpServers
+	}
+
+	mcpServers["surface-proxy"] = map[string]interface{}{
+		"command": exePath,
+		"args":    []string{"mcp-mode", "--config", s.loader.Path()},
+	}
+
+	// Create directory if not exists
+	if errDir := os.MkdirAll(filepath.Dir(path), 0755); errDir != nil {
+		return errDir
+	}
+
+	newContent, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, newContent, 0644)
 }

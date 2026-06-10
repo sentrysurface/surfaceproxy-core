@@ -554,6 +554,22 @@
                     <div class="text-gray-300 break-all select-all" x-text="item.config_path || 'No matching path detected'"></div>
                   </div>
 
+                  <!-- One-Click Register Buttons -->
+                  <div class="pt-1">
+                    <template x-if="!item.registered && item.config_path">
+                      <button @click="registerIntegration(item.name)" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs py-2 px-4 rounded-xl transition duration-150 flex items-center justify-center gap-1.5 shadow-md">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        One-Click Register Setup
+                      </button>
+                    </template>
+                    <template x-if="item.registered && item.config_path">
+                      <button @click="registerIntegration(item.name)" class="w-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white font-semibold text-xs py-2 px-4 rounded-xl transition duration-150 border border-white/5 flex items-center justify-center gap-1.5">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Re-Register / Update Setup
+                      </button>
+                    </template>
+                  </div>
+
                   <div class="space-y-2">
                     <div class="flex justify-between items-center text-[10px] text-gray-500 font-semibold uppercase tracking-wider">
                       <span>mcpServers JSON Config snippet</span>
@@ -903,6 +919,25 @@
             .catch(() => {
               this.showToast('Failed to copy snippet', 'error');
             });
+        },
+
+        registerIntegration(name) {
+          fetch('/api/integrations/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
+          })
+          .then(r => {
+            if (!r.ok) return r.json().then(err => { throw new Error(err.error || 'Failed to register'); });
+            return r.json();
+          })
+          .then(() => {
+            this.showToast(`${name} MCP registered successfully`, 'success');
+            this.fetchIntegrations();
+          })
+          .catch(err => {
+            this.showToast(err.message, 'error');
+          });
         },
 
         formatCount(n) {
