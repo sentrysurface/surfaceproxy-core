@@ -134,3 +134,33 @@ func (l *Loader) Close() error {
 	}
 	return nil
 }
+
+// Path returns the resolved absolute path to the config file.
+func (l *Loader) Path() string {
+	return l.path
+}
+
+// WriteConfig atomically writes the given Config to the config file on disk.
+// It temporarily pauses the file watcher to avoid a hot-reload loop.
+func (l *Loader) WriteConfig(cfg *Config) error {
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	tmp := l.path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return fmt.Errorf("failed to write temp config: %w", err)
+	}
+	if err := os.Rename(tmp, l.path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("failed to finalize config: %w", err)
+	}
+
+	// Update in-memory config immediately so callers see the new values.
+	l.mu.Lock()
+	l.cfg = cfg
+	l.mu.Unlock()
+	return nil
+}
+

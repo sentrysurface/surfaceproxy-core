@@ -3,7 +3,6 @@
 package tray
 
 import (
-	"context"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -12,6 +11,7 @@ import (
 	"github.com/getlantern/systray"
 	"github.com/sentrysurface/surface-proxy/internal/telemetry"
 )
+
 
 // Options configures the tray icon behaviour.
 type Options struct {
@@ -93,7 +93,6 @@ func openBrowser(url string) {
 }
 
 func setIcon() {
-	// Placeholder: embed a 16x16 PNG icon here in production.
-	// systray.SetIcon(iconBytes)
-	_ = context.Background() // suppress import
+	systray.SetIcon(iconBytes)
 }
+

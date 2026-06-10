@@ -134,7 +134,7 @@ func (a *App) Start(ctx context.Context) error {
 	// Step 4: Dashboard UI (full mode only)
 	if a.mode == ModeFull {
 		util.SafeGo(func() {
-			uiServer := ui.NewServer(a.loader.GetConfig(), a.ledger)
+			uiServer := ui.NewServer(a.loader, a.firewall, a.ledger)
 			if err := uiServer.Start(ctx); err != nil {
 				errChan <- err
 			}

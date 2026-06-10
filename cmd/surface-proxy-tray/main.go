@@ -7,7 +7,9 @@ import (
 	"flag"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 
 	"github.com/sentrysurface/surface-proxy/internal/app"
@@ -19,7 +21,17 @@ import (
 func main() {
 	fs := flag.NewFlagSet("surface-proxy-tray", flag.ExitOnError)
 	configPath := fs.String("config", "surface-proxy.json", "Path to configuration policy file")
+	background := fs.Bool("background", false, "Detach from the current terminal and run in the background")
 	fs.Parse(os.Args[1:])
+
+	// If --background is requested, re-launch ourselves detached and exit this process.
+	// This lets PowerShell / cmd.exe terminals return to their prompt immediately.
+	if *background {
+		if err := relaunchDetached(); err != nil {
+			log.Fatalf("[TRAY] Failed to launch in background: %v", err)
+		}
+		os.Exit(0)
+	}
 
 	resolvedPath := config.ResolvePath(*configPath)
 	config.SetupLogging(resolvedPath)
@@ -55,4 +67,39 @@ func main() {
 		Ledger:       a.Ledger(),
 		OnQuit:       cancel,
 	})
+}
+
+// relaunchDetached starts a new instance of this binary without the --background flag,
+// fully detached from the parent terminal.
+func relaunchDetached() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	// Build args, stripping --background from the list
+	var args []string
+	for _, a := range os.Args[1:] {
+		if a == "--background" || a == "-background" {
+			continue
+		}
+		args = append(args, a)
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		// "start /B" launches a detached background process on Windows
+		cmdArgs := append([]string{"/c", "start", "/B", exe}, args...)
+		cmd = exec.Command("cmd", cmdArgs...)
+	default:
+		// On macOS / Linux, set process group to detach
+		cmd = exec.Command(exe, args...)
+		cmd.SysProcAttr = newSysProcAttr()
+	}
+
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	return cmd.Start()
 }

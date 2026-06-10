@@ -2,14 +2,35 @@ package firewall
 
 import (
 	"regexp"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/sentrysurface/surface-proxy/internal/config"
 )
 
+// LogEvent records a single firewall evaluation decision.
+type LogEvent struct {
+	Timestamp time.Time `json:"timestamp"`
+	URL       string    `json:"url"`
+	Allowed   bool      `json:"allowed"`
+	Reason    string    `json:"reason"`
+}
+
+const maxLogEvents = 200
+
 type RuleEngine struct {
 	allowlist atomic.Pointer[[]*regexp.Regexp]
 	blocklist atomic.Pointer[[]*regexp.Regexp]
+
+	// raw patterns stored for UI read-back
+	rawMu     sync.RWMutex
+	rawAllow  []string
+	rawBlock  []string
+
+	// ring-buffer for decision log
+	logMu  sync.Mutex
+	events []LogEvent
 }
 
 func NewRuleEngine(cfg config.FirewallConfig) (*RuleEngine, error) {
@@ -41,12 +62,28 @@ func (re *RuleEngine) UpdateRules(cfg config.FirewallConfig) error {
 
 	re.allowlist.Store(&newAllow)
 	re.blocklist.Store(&newBlock)
+
+	re.rawMu.Lock()
+	re.rawAllow = append([]string{}, cfg.Allowlist...)
+	re.rawBlock = append([]string{}, cfg.Blocklist...)
+	re.rawMu.Unlock()
+
 	return nil
+}
+
+// GetRules returns the current raw pattern strings for allowlist and blocklist.
+func (re *RuleEngine) GetRules() (allowlist []string, blocklist []string) {
+	re.rawMu.RLock()
+	defer re.rawMu.RUnlock()
+	return append([]string{}, re.rawAllow...), append([]string{}, re.rawBlock...)
 }
 
 func (re *RuleEngine) EvaluateURL(targetURL string) (bool, string, error) {
 	allowPtr := re.allowlist.Load()
 	blockPtr := re.blocklist.Load()
+
+	allowed := true
+	reason := "Allowed"
 
 	if allowPtr != nil {
 		allowlist := *allowPtr
@@ -59,19 +96,53 @@ func (re *RuleEngine) EvaluateURL(targetURL string) (bool, string, error) {
 				}
 			}
 			if !matched {
-				return false, "URL not in allowlist", nil
+				allowed = false
+				reason = "URL not in allowlist"
 			}
 		}
 	}
 
-	if blockPtr != nil {
+	if allowed && blockPtr != nil {
 		blocklist := *blockPtr
 		for _, r := range blocklist {
 			if r.MatchString(targetURL) {
-				return false, "URL matches blocklist pattern", nil
+				allowed = false
+				reason = "URL matches blocklist pattern"
+				break
 			}
 		}
 	}
 
-	return true, "Allowed", nil
+	re.appendLog(LogEvent{
+		Timestamp: time.Now(),
+		URL:       targetURL,
+		Allowed:   allowed,
+		Reason:    reason,
+	})
+
+	return allowed, reason, nil
+}
+
+// RecentEvents returns up to n recent firewall evaluation events, newest first.
+func (re *RuleEngine) RecentEvents(n int) []LogEvent {
+	re.logMu.Lock()
+	defer re.logMu.Unlock()
+	if n > len(re.events) {
+		n = len(re.events)
+	}
+	// return newest-first slice copy
+	out := make([]LogEvent, n)
+	for i := 0; i < n; i++ {
+		out[i] = re.events[len(re.events)-1-i]
+	}
+	return out
+}
+
+func (re *RuleEngine) appendLog(ev LogEvent) {
+	re.logMu.Lock()
+	defer re.logMu.Unlock()
+	re.events = append(re.events, ev)
+	if len(re.events) > maxLogEvents {
+		re.events = re.events[len(re.events)-maxLogEvents:]
+	}
 }
