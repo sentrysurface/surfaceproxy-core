@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,7 +22,7 @@
     }
   </script>
   <style>
-    html { background:#080c14; }
+    html { background:#080c14; scroll-behavior: smooth; }
     body { background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124,58,237,0.12), transparent); }
     .glass { background:rgba(15,20,35,0.75); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); }
     .glow-purple { box-shadow:0 0 30px -8px rgba(139,92,246,0.5); }
@@ -32,230 +32,934 @@
     .counter { font-variant-numeric: tabular-nums; }
     @keyframes pulse-dot { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
     .pulse-dot { animation: pulse-dot 2s infinite; }
+    
+    /* Scrollbar stylings */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(139, 92, 246, 0.4);
+      border-radius: 4px;
+    }
+    
+    /* Hide scrollbar utility */
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-none {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
   </style>
 </head>
-<body class="font-sans text-gray-100 min-h-screen antialiased" x-data="dashboard()" x-init="init()">
+<body class="font-sans text-gray-100 min-h-screen antialiased flex flex-col md:flex-row" x-data="dashboard()" x-init="init()">
 
   <!-- Ambient blobs -->
-  <div class="fixed top-0 left-0 w-[600px] h-[600px] bg-brand-600/8 rounded-full blur-[120px] pointer-events-none -translate-x-1/2 -translate-y-1/2"></div>
-  <div class="fixed bottom-0 right-0 w-[500px] h-[500px] bg-blue-600/8 rounded-full blur-[120px] pointer-events-none translate-x-1/3 translate-y-1/3"></div>
+  <div class="fixed top-0 left-0 w-[600px] h-[600px] bg-brand-600/5 rounded-full blur-[120px] pointer-events-none -translate-x-1/2 -translate-y-1/2 z-0"></div>
+  <div class="fixed bottom-0 right-0 w-[500px] h-[500px] bg-blue-600/5 rounded-full blur-[120px] pointer-events-none translate-x-1/3 translate-y-1/3 z-0"></div>
 
-  <!-- Navbar -->
-  <nav class="glass sticky top-0 z-50 border-b border-white/5">
-    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+  <!-- Sidebar Navigation -->
+  <aside class="w-full md:w-64 flex-shrink-0 bg-[#0a0f1d]/80 md:h-screen md:sticky md:top-0 border-b md:border-b-0 md:border-r border-white/5 glass flex flex-col justify-between z-40">
+    <div class="p-6 space-y-8 flex-grow flex flex-col">
+      <!-- Logo -->
       <div class="flex items-center gap-3">
         <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-brand-600 to-blue-500 flex items-center justify-center glow-purple flex-shrink-0">
           <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
         </div>
         <div>
           <h1 class="text-lg font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent leading-tight">SurfaceProxy</h1>
-          <p class="text-[10px] text-gray-500 leading-tight tracking-widest uppercase">Core Engine Console</p>
+          <p class="text-[10px] text-gray-500 leading-tight tracking-widest uppercase font-semibold">Core Engine Console</p>
         </div>
       </div>
-      <div class="flex items-center gap-6">
+
+      <!-- Navigation tabs -->
+      <nav class="flex flex-row md:flex-col overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 space-x-2 md:space-x-0 md:space-y-1.5 scrollbar-none">
+        
+        <button @click="activeTab = 'overview'" class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition duration-150 border border-transparent flex-shrink-0"
+                :class="activeTab === 'overview' ? 'bg-brand-500/15 text-brand-400 border-brand-500/20 font-semibold' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'">
+          <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Overview
+        </button>
+
+        <button @click="activeTab = 'firewall'; fetchAllowlist(); fetchBlocklist(); fetchFirewallLog()" class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition duration-150 border border-transparent flex-shrink-0"
+                :class="activeTab === 'firewall' ? 'bg-brand-500/15 text-brand-400 border-brand-500/20 font-semibold' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'">
+          <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          Firewall Rules
+        </button>
+
+        <button @click="activeTab = 'analytics'" class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition duration-150 border border-transparent flex-shrink-0"
+                :class="activeTab === 'analytics' ? 'bg-brand-500/15 text-brand-400 border-brand-500/20 font-semibold' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'">
+          <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2"/></svg>
+          Token Analytics
+        </button>
+
+        <button @click="activeTab = 'config'; fetchConfig()" class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition duration-150 border border-transparent flex-shrink-0"
+                :class="activeTab === 'config' ? 'bg-brand-500/15 text-brand-400 border-brand-500/20 font-semibold' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'">
+          <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Engine Config
+        </button>
+
+        <button @click="activeTab = 'integrations'; fetchIntegrations()" class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition duration-150 border border-transparent flex-shrink-0"
+                :class="activeTab === 'integrations' ? 'bg-brand-500/15 text-brand-400 border-brand-500/20 font-semibold' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'">
+          <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/></svg>
+          Integrations
+        </button>
+
+        <button @click="activeTab = 'logs'; fetchLogs()" class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition duration-150 border border-transparent flex-shrink-0"
+                :class="activeTab === 'logs' ? 'bg-brand-500/15 text-brand-400 border-brand-500/20 font-semibold' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'">
+          <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          Logs
+        </button>
+      </nav>
+    </div>
+
+    <!-- Status panel in Sidebar Footer -->
+    <div class="p-6 border-t border-white/5 space-y-3 bg-black/10">
+      <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full pulse-dot" :class="connected ? 'bg-emerald-400' : 'bg-red-500'"></span>
-          <span class="text-sm font-medium" :class="connected ? 'text-emerald-400' : 'text-red-400'" x-text="connected ? 'LIVE' : 'OFFLINE'"></span>
+          <span class="w-2 h-2 rounded-full pulse-dot animate-pulse" :class="connected ? 'bg-emerald-400' : 'bg-red-500'"></span>
+          <span class="text-xs font-bold tracking-wider" :class="connected ? 'text-emerald-400' : 'text-red-400'" x-text="connected ? 'LIVE ENGINE' : 'OFFLINE'"></span>
         </div>
-        <span class="text-xs text-gray-600 font-mono" x-text="stats.proxy_addr ? 'ws://' + stats.proxy_addr : 'ws://:8443'"></span>
+        <span class="text-[10px] font-mono text-gray-500 bg-white/5 px-2 py-0.5 rounded-full border border-white/5" x-text="stats.proxy_addr ? 'ws://' + stats.proxy_addr : ':8443'"></span>
       </div>
+      <div class="text-[10px] text-gray-500 font-mono truncate cursor-pointer hover:text-gray-400 transition" :title="config.config_path" x-text="config.config_path ? 'cfg: ' + config.config_path.split(/[\\/]/).pop() : 'loading config...'"></div>
     </div>
-  </nav>
+  </aside>
 
-  <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+  <!-- Main Content Area Wrapper -->
+  <div class="flex-grow flex flex-col min-h-screen z-10 overflow-x-hidden">
+    
+    <!-- Main Content -->
+    <main class="flex-grow p-6 md:p-8 max-w-6xl w-full mx-auto space-y-6">
 
-    <!-- Hero ROI metric -->
-    <div class="glass rounded-2xl p-6 glow-green border-emerald-500/10">
-      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <p class="text-sm text-gray-400 font-medium mb-1">💰 Total Dollars Saved This Session</p>
-          <div class="text-5xl font-bold counter bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent" x-text="'$' + (stats.dollars_saved || 0).toFixed(6)">$0.000000</div>
-          <p class="text-xs text-gray-500 mt-2">Tokens Compressed × API Unit Price (Claude 3.5 Sonnet @ $0.003/1K)</p>
-        </div>
-        <div class="grid grid-cols-2 gap-4 md:gap-6">
-          <div class="text-center">
-            <div class="text-3xl font-bold counter text-brand-400" x-text="formatPct(stats.reduction_pct) + '%'">—</div>
-            <div class="text-xs text-gray-500 mt-1">Context Reduction</div>
+      <!-- ==================== OVERVIEW TAB ==================== -->
+      <div x-show="activeTab === 'overview'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-6">
+        
+        <!-- Hero ROI Card -->
+        <div class="glass rounded-2xl p-6 glow-green border-emerald-500/10 relative overflow-hidden">
+          <div class="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+            <div>
+              <p class="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1">💰 Total Savings This Session</p>
+              <div class="text-5xl font-bold counter bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent" x-text="'$' + (stats.dollars_saved || 0).toFixed(6)">$0.000000</div>
+              <p class="text-[10px] text-gray-500 mt-2">Tokens Compressed × API Unit Price (Claude 3.5 Sonnet @ $0.003/1K)</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="text-center bg-white/5 px-4 py-2.5 rounded-xl border border-white/5 min-w-[120px]">
+                <div class="text-2xl font-bold counter text-brand-400" x-text="formatPct(stats.reduction_pct) + '%'">—</div>
+                <div class="text-[10px] text-gray-400 mt-1 uppercase font-semibold tracking-wider">Context Reduced</div>
+              </div>
+              <div class="text-center bg-white/5 px-4 py-2.5 rounded-xl border border-white/5 min-w-[120px]">
+                <div class="text-2xl font-bold counter text-blue-400" x-text="formatCount(stats.tokens_reduced || 0)">—</div>
+                <div class="text-[10px] text-gray-400 mt-1 uppercase font-semibold tracking-wider">Tokens Saved</div>
+              </div>
+            </div>
           </div>
-          <div class="text-center">
-            <div class="text-3xl font-bold counter text-blue-400" x-text="formatCount(stats.tokens_reduced || 0)">—</div>
-            <div class="text-xs text-gray-500 mt-1">Tokens Saved</div>
+        </div>
+
+        <!-- Global Stats Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <template x-for="card in statCards">
+            <div class="glass stat-card rounded-2xl p-5 border border-white/5 flex flex-col justify-between">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500" x-text="card.label"></span>
+                <span class="text-base" x-text="card.icon"></span>
+              </div>
+              <div>
+                <div class="text-2xl font-bold counter" :class="card.color" x-text="card.value"></div>
+                <div class="text-[10px] text-gray-500 mt-1" x-text="card.sub"></div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Active Sessions -->
+        <div class="glass rounded-2xl p-6">
+          <div class="flex items-center justify-between mb-5">
+            <div>
+              <h2 class="text-base font-semibold text-white">Active Sessions</h2>
+              <p class="text-xs text-gray-400 mt-0.5">Real-time browse operations running via CDP isolation</p>
+            </div>
+            <span class="text-xs font-mono text-gray-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/5" x-text="sessions.length + ' session(s)'"></span>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Stats grid -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <template x-for="card in statCards">
-        <div class="glass stat-card rounded-2xl p-5">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold uppercase tracking-wider text-gray-500" x-text="card.label"></span>
-            <span class="text-lg" x-text="card.icon"></span>
-          </div>
-          <div class="text-2xl font-bold counter" :class="card.color" x-text="card.value"></div>
-          <div class="text-xs text-gray-600 mt-1" x-text="card.sub"></div>
-        </div>
-      </template>
-    </div>
-
-    <!-- Bottom two-col grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-      <!-- Active Sessions Table -->
-      <div class="lg:col-span-2 glass rounded-2xl p-6">
-        <div class="flex items-center justify-between mb-5">
-          <h2 class="text-base font-semibold text-white">Active Sessions</h2>
-          <span class="text-xs font-mono text-gray-500 bg-white/5 px-2 py-0.5 rounded-full" x-text="sessions.length + ' session(s)'"></span>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead>
-              <tr class="border-b border-white/5 text-gray-500">
-                <th class="pb-3 pr-4">Session ID</th>
-                <th class="pb-3 pr-4">URL</th>
-                <th class="pb-3 pr-4">Tokens Saved</th>
-                <th class="pb-3 pr-4">Reduction</th>
-                <th class="pb-3">Status</th>
-              </tr>
-            </thead>
-            <tbody class="font-mono divide-y divide-white/5">
-              <template x-if="sessions.length === 0">
-                <tr><td colspan="5" class="py-6 text-center text-gray-600">No sessions yet — start browsing</td></tr>
-              </template>
-              <template x-for="s in sessions" :key="s.id">
-                <tr class="text-gray-300">
-                  <td class="py-3 pr-4 text-gray-500" x-text="s.id.slice(0,8) + '...'"></td>
-                  <td class="py-3 pr-4 max-w-[200px] truncate" :title="s.url" x-text="s.url || '—'"></td>
-                  <td class="py-3 pr-4 text-brand-400" x-text="formatCount(s.raw_tokens - s.pruned_tokens)"></td>
-                  <td class="py-3 pr-4 text-emerald-400" x-text="formatPct(s.reduction_pct) + '%'"></td>
-                  <td class="py-3">
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                          :class="s.active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gray-500/15 text-gray-500'"
-                          x-text="s.active ? 'LIVE' : 'DONE'"></span>
-                  </td>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="border-b border-white/5 text-gray-500 uppercase tracking-wider">
+                  <th class="pb-3 pr-4">Session ID</th>
+                  <th class="pb-3 pr-4">URL</th>
+                  <th class="pb-3 pr-4">Duration</th>
+                  <th class="pb-3 pr-4">Tokens Saved</th>
+                  <th class="pb-3 pr-4">Reduction</th>
+                  <th class="pb-3">Status</th>
                 </tr>
-              </template>
-            </tbody>
-          </table>
+              </thead>
+              <tbody class="font-mono divide-y divide-white/5">
+                <template x-if="sessions.length === 0">
+                  <tr><td colspan="6" class="py-12 text-center text-gray-500">No active sessions. Start a browsing session from your agent tool.</td></tr>
+                </template>
+                <template x-for="s in sessions" :key="s.id">
+                  <tr class="text-gray-300 hover:bg-white/[0.02] transition duration-150">
+                    <td class="py-3.5 pr-4 text-gray-500" x-text="s.id.slice(0,8) + '...'"></td>
+                    <td class="py-3.5 pr-4 max-w-[280px] truncate" :title="s.url" x-text="s.url || '—'"></td>
+                    <td class="py-3.5 pr-4 text-gray-400" x-text="s.duration_secs.toFixed(1) + 's'"></td>
+                    <td class="py-3.5 pr-4 text-brand-400" x-text="formatCount(s.raw_tokens - s.pruned_tokens)"></td>
+                    <td class="py-3.5 pr-4 text-emerald-400" x-text="formatPct(s.reduction_pct) + '%'"></td>
+                    <td class="py-3.5">
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider"
+                            :class="s.active ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-gray-500/15 text-gray-500'"
+                            x-text="s.active ? 'LIVE' : 'DONE'"></span>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </div>
 
-      <!-- Config panel -->
-      <div class="glass rounded-2xl p-6 space-y-5">
-        <h2 class="text-base font-semibold text-white">Engine Config</h2>
-        <div class="space-y-3 text-sm">
-          <div>
-            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">MCP Transport</div>
-            <div class="font-mono bg-black/20 rounded-lg px-3 py-2 text-brand-400 border border-white/5" x-text="stats.mcp_transport || 'stdio'"></div>
-          </div>
-          <div>
-            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">CDP Proxy</div>
-            <div class="font-mono bg-black/20 rounded-lg px-3 py-2 border border-white/5" x-text="stats.proxy_addr ? 'ws://' + stats.proxy_addr : '—'"></div>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Allowlist</div>
-              <div class="font-mono bg-black/20 rounded-lg px-3 py-2 border border-white/5 text-emerald-400" x-text="(stats.allowlist_count || 0) + ' rules'"></div>
+      <!-- ==================== FIREWALL TAB ==================== -->
+      <div x-show="activeTab === 'firewall'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-6" style="display: none;">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Allowlist Rules -->
+          <div class="glass rounded-2xl p-6 flex flex-col justify-between">
+            <div class="w-full">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Allowlist Rules
+                  </h2>
+                  <p class="text-xs text-gray-400 mt-0.5">Regex patterns that are explicitly allowed to route</p>
+                </div>
+                <span class="text-xs font-mono text-gray-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/5" x-text="allowlist.length + ' rules'"></span>
+              </div>
+
+              <!-- Add rule form -->
+              <div class="mb-4">
+                <div class="flex gap-2">
+                  <input type="text" x-model="newAllowPattern" @keydown.enter="addRule(true)" placeholder="e.g. ^https?://([a-zA-Z0-9-]+\.)*github\.com"
+                         class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500/50 transition">
+                  <button @click="addRule(true)" class="bg-brand-600 hover:bg-brand-500 text-white font-medium text-sm px-4 py-2 rounded-xl transition duration-150 flex-shrink-0">
+                    Add
+                  </button>
+                </div>
+                <p x-show="allowPatternError" class="text-xs text-red-400 mt-2 font-mono" x-text="allowPatternError"></p>
+              </div>
+
+              <!-- Rules list -->
+              <div class="max-h-[300px] overflow-y-auto pr-1 space-y-2 font-mono text-xs">
+                <template x-if="allowlist.length === 0">
+                  <div class="text-center py-8 text-gray-500 border border-dashed border-white/5 rounded-xl">No allow rules configured. All URLs will fall back to blocked.</div>
+                </template>
+                <template x-for="rule in allowlist" :key="rule">
+                  <div class="flex items-center justify-between bg-white/5 hover:bg-white/[0.08] px-3.5 py-2 rounded-xl border border-white/5 transition duration-150 group">
+                    <span class="text-gray-300 select-all truncate pr-2" :title="rule" x-text="rule"></span>
+                    <button @click="deleteRule(rule, true)" class="text-gray-500 hover:text-red-400 p-1 rounded transition md:opacity-0 group-hover:opacity-100 focus:opacity-100">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                  </div>
+                </template>
+              </div>
             </div>
-            <div>
-              <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Blocklist</div>
-              <div class="font-mono bg-black/20 rounded-lg px-3 py-2 border border-white/5 text-red-400" x-text="(stats.blocklist_count || 0) + ' rules'"></div>
-            </div>
           </div>
-          <div>
-            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Config Watcher</div>
-            <div class="flex items-center gap-2 font-mono bg-black/20 rounded-lg px-3 py-2 border border-white/5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>
-              <span class="text-emerald-400 text-xs">fsnotify active</span>
+
+          <!-- Blocklist Rules -->
+          <div class="glass rounded-2xl p-6 flex flex-col justify-between">
+            <div class="w-full">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span> Blocklist Rules
+                  </h2>
+                  <p class="text-xs text-gray-400 mt-0.5">Regex patterns that are blocked even if allowed</p>
+                </div>
+                <span class="text-xs font-mono text-gray-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/5" x-text="blocklist.length + ' rules'"></span>
+              </div>
+
+              <!-- Add rule form -->
+              <div class="mb-4">
+                <div class="flex gap-2">
+                  <input type="text" x-model="newBlockPattern" @keydown.enter="addRule(false)" placeholder="e.g. ^https?://([a-zA-Z0-9-]+\.)*doubleclick\.net"
+                         class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500/50 transition">
+                  <button @click="addRule(false)" class="bg-brand-600 hover:bg-brand-500 text-white font-medium text-sm px-4 py-2 rounded-xl transition duration-150 flex-shrink-0">
+                    Add
+                  </button>
+                </div>
+                <p x-show="blockPatternError" class="text-xs text-red-400 mt-2 font-mono" x-text="blockPatternError"></p>
+              </div>
+
+              <!-- Rules list -->
+              <div class="max-h-[300px] overflow-y-auto pr-1 space-y-2 font-mono text-xs">
+                <template x-if="blocklist.length === 0">
+                  <div class="text-center py-8 text-gray-500 border border-dashed border-white/5 rounded-xl">No active blocks configured.</div>
+                </template>
+                <template x-for="rule in blocklist" :key="rule">
+                  <div class="flex items-center justify-between bg-white/5 hover:bg-white/[0.08] px-3.5 py-2 rounded-xl border border-white/5 transition duration-150 group">
+                    <span class="text-gray-300 select-all truncate pr-2" :title="rule" x-text="rule"></span>
+                    <button @click="deleteRule(rule, false)" class="text-gray-500 hover:text-red-400 p-1 rounded transition md:opacity-0 group-hover:opacity-100 focus:opacity-100">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                  </div>
+                </template>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Byte throughput bar -->
-        <div class="pt-2">
-          <div class="flex justify-between text-xs text-gray-500 mb-1.5">
-            <span>Byte throughput</span>
-            <span x-text="formatBytes(stats.total_pruned_bytes || 0) + ' / ' + formatBytes(stats.total_raw_bytes || 0)"></span>
+        <!-- Live Decision Log -->
+        <div class="glass rounded-2xl p-6">
+          <div class="flex items-center justify-between mb-5">
+            <div>
+              <h2 class="text-base font-semibold text-white">Firewall Decision History</h2>
+              <p class="text-xs text-gray-400 mt-0.5">Real-time decisions taken by the local rules engine (auto-refreshes every 3s)</p>
+            </div>
+            <button @click="fetchFirewallLog()" class="text-xs text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl border border-white/5 transition duration-150 flex items-center gap-1.5 font-medium">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H17.21"/></svg>
+              Refresh Log
+            </button>
           </div>
-          <div class="h-2 bg-white/5 rounded-full overflow-hidden">
-            <div class="h-full bg-gradient-to-r from-brand-600 to-emerald-500 rounded-full transition-all duration-500"
-                 :style="'width:' + Math.min(100, (stats.total_pruned_bytes / Math.max(1, stats.total_raw_bytes)) * 100) + '%'"></div>
+          <div class="overflow-x-auto max-h-[350px] overflow-y-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="border-b border-white/5 text-gray-500 uppercase tracking-wider sticky top-0 bg-[#0c1220]/95 backdrop-blur z-10">
+                  <th class="pb-3 pr-4">Timestamp</th>
+                  <th class="pb-3 pr-4">Target URL</th>
+                  <th class="pb-3 pr-4">Outcome</th>
+                  <th class="pb-3">Reason</th>
+                </tr>
+              </thead>
+              <tbody class="font-mono divide-y divide-white/5">
+                <template x-if="firewallLog.length === 0">
+                  <tr><td colspan="4" class="py-8 text-center text-gray-500">No requests evaluated yet.</td></tr>
+                </template>
+                <template x-for="log in firewallLog" :key="log.timestamp + log.url">
+                  <tr class="text-gray-300 hover:bg-white/[0.01]">
+                    <td class="py-3 pr-4 text-gray-500 font-sans" x-text="formatTime(log.timestamp)"></td>
+                    <td class="py-3 pr-4 max-w-[280px] sm:max-w-[400px] truncate select-all" :title="log.url" x-text="log.url"></td>
+                    <td class="py-3 pr-4">
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider"
+                            :class="log.allowed ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/10' : 'bg-red-500/15 text-red-400 border border-red-500/10'"
+                            x-text="log.allowed ? 'ALLOWED' : 'BLOCKED'"></span>
+                    </td>
+                    <td class="py-3 text-gray-400" x-text="log.reason"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
           </div>
-          <div class="text-[10px] text-gray-600 mt-1">Pruned / Raw HTML — lower is better</div>
         </div>
+
       </div>
 
+      <!-- ==================== ANALYTICS TAB ==================== -->
+      <div x-show="activeTab === 'analytics'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-6" style="display: none;">
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Card 1: Token Compression -->
+          <div class="glass rounded-2xl p-6 relative overflow-hidden">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Token Reduction Ratio</div>
+            <div class="text-4xl font-bold text-brand-400 flex items-baseline gap-1">
+              <span x-text="formatPct(stats.reduction_pct) + '%'">—</span>
+              <span class="text-xs text-gray-500 font-normal">compressed</span>
+            </div>
+            <!-- Mini progress bar -->
+            <div class="h-2 bg-white/5 rounded-full mt-4 overflow-hidden">
+              <div class="h-full bg-brand-500 rounded-full" :style="'width: ' + (stats.reduction_pct || 0) + '%'"></div>
+            </div>
+            <p class="text-[10px] text-gray-500 mt-2">Saved out of <span class="font-mono" x-text="formatCount(stats.total_raw_tokens || 0)"></span> original prompt tokens</p>
+          </div>
+
+          <!-- Card 2: Byte Savings -->
+          <div class="glass rounded-2xl p-6 relative overflow-hidden">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Byte size Reduction</div>
+            <div class="text-4xl font-bold text-emerald-400 flex items-baseline gap-1">
+              <span x-text="stats.total_raw_bytes ? (100 - (stats.total_pruned_bytes / stats.total_raw_bytes * 100)).toFixed(1) + '%' : '0.0%'">—</span>
+              <span class="text-xs text-gray-500 font-normal">smaller size</span>
+            </div>
+            <div class="h-2 bg-white/5 rounded-full mt-4 overflow-hidden">
+              <div class="h-full bg-emerald-500 rounded-full" :style="'width: ' + (stats.total_raw_bytes ? (100 - (stats.total_pruned_bytes / stats.total_raw_bytes * 100)) : 0) + '%'"></div>
+            </div>
+            <p class="text-[10px] text-gray-500 mt-2">Pruned: <span class="font-mono text-emerald-400" x-text="formatBytes(stats.total_pruned_bytes || 0)"></span> of <span class="font-mono" x-text="formatBytes(stats.total_raw_bytes || 0)"></span></p>
+          </div>
+
+          <!-- Card 3: Saved Cost -->
+          <div class="glass rounded-2xl p-6 relative overflow-hidden">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Estimated Value Recovered</div>
+            <div class="text-4xl font-bold text-teal-400" x-text="'$' + (stats.dollars_saved || 0).toFixed(4)">$0.0000</div>
+            <div class="text-[10px] text-gray-500 font-mono mt-3 leading-relaxed">
+              Raw Cost footprint: <span class="text-gray-400" x-text="'$' + ((stats.total_raw_tokens || 0) * 0.000003).toFixed(4)"></span><br>
+              Optimized Cost: <span class="text-emerald-400" x-text="'$' + ((stats.total_pruned_tokens || 0) * 0.000003).toFixed(4)"></span>
+            </div>
+            <p class="text-[10px] text-gray-500 mt-2">Based on standard Claude 3.5 prompt pricing ($3.00 / 1M tokens)</p>
+          </div>
+        </div>
+
+        <!-- Sessions breakdown as bars -->
+        <div class="glass rounded-2xl p-6">
+          <div class="mb-5">
+            <h2 class="text-base font-semibold text-white">Session Token Comparison</h2>
+            <p class="text-xs text-gray-400 mt-0.5">Detailed breakdown of context tokens compressed per page load</p>
+          </div>
+
+          <div class="space-y-4">
+            <template x-if="sessions.length === 0">
+              <div class="text-center py-12 text-gray-500">No session data. Run browsing actions via your tool/agent to compile metrics.</div>
+            </template>
+            <template x-for="s in sessions" :key="s.id">
+              <div class="bg-white/5 border border-white/5 rounded-xl p-4 space-y-2.5 hover:bg-white/[0.08] transition duration-150">
+                
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div class="flex items-center gap-2 max-w-full">
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20" x-text="'Session ' + s.id.slice(0,8)"></span>
+                    <span class="text-xs text-gray-400 truncate max-w-[240px] sm:max-w-[450px]" :title="s.url" x-text="s.url"></span>
+                  </div>
+                  <div class="text-xs text-gray-400 font-mono flex-shrink-0">
+                    Saved <span class="text-emerald-400 font-bold" x-text="formatPct(s.reduction_pct) + '%'"></span> (<span class="text-brand-400 font-bold" x-text="formatCount(s.raw_tokens - s.pruned_tokens)"></span> tokens)
+                  </div>
+                </div>
+
+                <div class="space-y-1 font-mono text-[10px] text-gray-400">
+                  <div class="flex justify-between items-center text-[9px] text-gray-500">
+                    <span>RAW PROMPT (<span x-text="formatCount(s.raw_tokens)"></span> tokens)</span>
+                    <span class="text-brand-400 font-bold">COMPRESSED (<span x-text="formatCount(s.pruned_tokens)"></span> tokens)</span>
+                  </div>
+                  <div class="relative h-4 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                    <!-- Raw bar (background width) -->
+                    <div class="absolute inset-y-0 left-0 bg-white/10 rounded-full" style="width: 100%"></div>
+                    <!-- Pruned bar (foreground overlay) -->
+                    <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-brand-600 to-emerald-500 rounded-full transition-all duration-500"
+                         :style="'width: ' + Math.max(4, (s.pruned_tokens / Math.max(1, s.raw_tokens)) * 100) + '%'"></div>
+                  </div>
+                </div>
+
+              </div>
+            </template>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== ENGINE CONFIG TAB ==================== -->
+      <div x-show="activeTab === 'config'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-6" style="display: none;">
+        
+        <div class="glass rounded-2xl p-6">
+          <div class="mb-5">
+            <h2 class="text-base font-semibold text-white">Engine Configuration</h2>
+            <p class="text-xs text-gray-400 mt-0.5">Active settings loaded from the proxy configuration JSON file</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 font-mono text-xs">
+            <!-- Network & MCP -->
+            <div class="space-y-4">
+              <h3 class="text-sm font-semibold text-brand-400 border-b border-white/5 pb-2 font-sans">Network & Server</h3>
+              
+              <div class="flex justify-between items-center py-2 border-b border-white/5">
+                <span class="text-gray-500">Listen Address</span>
+                <span class="text-gray-300 bg-white/5 px-2 py-0.5 rounded" x-text="config.listen_addr || '—'"></span>
+              </div>
+              <div class="flex justify-between items-center py-2 border-b border-white/5">
+                <span class="text-gray-500">MCP Transport</span>
+                <span class="text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded border border-brand-500/15" x-text="config.mcp_transport || '—'"></span>
+              </div>
+              <div class="flex justify-between items-center py-2 border-b border-white/5">
+                <span class="text-gray-500">MCP Listen Address</span>
+                <span class="text-gray-300 bg-white/5 px-2 py-0.5 rounded" x-text="config.mcp_listen_addr || '—'"></span>
+              </div>
+              <div class="flex justify-between items-center py-2 border-b border-white/5">
+                <span class="text-gray-500">UI Server Address</span>
+                <span class="text-gray-300 bg-white/5 px-2 py-0.5 rounded">http://localhost:8080</span>
+              </div>
+              <div class="flex justify-between items-center py-2 border-b border-white/5 gap-4">
+                <span class="text-gray-500 flex-shrink-0">Config Path</span>
+                <span class="text-[10px] text-gray-400 select-all truncate max-w-[200px] sm:max-w-[300px]" :title="config.config_path" x-text="config.config_path || '—'"></span>
+              </div>
+              <div class="flex justify-between items-center py-2 border-b border-white/5 gap-4">
+                <span class="text-gray-500 flex-shrink-0">Log Path</span>
+                <span class="text-[10px] text-gray-400 select-all truncate max-w-[200px] sm:max-w-[300px]" :title="config.log_path" x-text="config.log_path || '—'"></span>
+              </div>
+            </div>
+
+            <!-- Browser Settings -->
+            <div class="space-y-4">
+              <h3 class="text-sm font-semibold text-brand-400 border-b border-white/5 pb-2 font-sans">Browser Instance</h3>
+              
+              <div class="flex justify-between items-center py-2 border-b border-white/5">
+                <span class="text-gray-500">Browser Mode</span>
+                <span class="text-gray-300 bg-white/5 px-2 py-0.5 rounded" x-text="config.browser ? config.browser.mode : '—'"></span>
+              </div>
+              <div class="flex justify-between items-center py-2 border-b border-white/5 gap-4">
+                <span class="text-gray-500 flex-shrink-0">Binary Path</span>
+                <span class="text-[10px] text-gray-400 truncate max-w-[200px] sm:max-w-[300px]" :title="config.browser ? config.browser.binary_path : ''" x-text="(config.browser && config.browser.binary_path) || 'Auto-detect system Chrome'"></span>
+              </div>
+              <div class="flex justify-between items-center py-2 border-b border-white/5">
+                <span class="text-gray-500">Debug Port</span>
+                <span class="text-gray-300 bg-white/5 px-2 py-0.5 rounded" x-text="config.browser ? config.browser.debug_port : '—'"></span>
+              </div>
+              <div class="flex justify-between items-start py-2 border-b border-white/5 flex-col sm:flex-row gap-2">
+                <span class="text-gray-500">Launch Arguments</span>
+                <div class="flex flex-wrap gap-1 justify-end max-w-full">
+                  <template x-if="!config.browser || !config.browser.args || config.browser.args.length === 0">
+                    <span class="text-gray-500">—</span>
+                  </template>
+                  <template x-for="arg in (config.browser ? config.browser.args : [])" :key="arg">
+                    <span class="text-[9px] bg-white/5 text-gray-400 px-2 py-0.5 rounded border border-white/5" x-text="arg"></span>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== INTEGRATIONS TAB ==================== -->
+      <div x-show="activeTab === 'integrations'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-6" style="display: none;">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <template x-for="item in integrations" :key="item.name">
+            <div class="glass rounded-2xl p-6 space-y-4 border border-white/5 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-4">
+                  <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg text-sm" x-text="item.name[0]"></div>
+                    <div>
+                      <h3 class="text-sm font-semibold text-white" x-text="item.name + ' MCP Connection'"></h3>
+                      <p class="text-[10px] text-gray-500 font-mono truncate max-w-[200px]" :title="item.config_path" x-text="item.config_path ? item.config_path.split(/[\\/]/).pop() : 'loading...'"></p>
+                    </div>
+                  </div>
+                  
+                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider"
+                        :class="item.registered ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/20'"
+                        x-text="item.registered ? 'CONFIGURED' : 'NOT DETECTED'"></span>
+                </div>
+
+                <div class="space-y-4">
+                  <p class="text-xs text-gray-400 leading-relaxed">
+                    Expose local web browsing tools (browse, click, type, screenshot) to <strong x-text="item.name"></strong> agent workflow dynamically via stdio protocol.
+                  </p>
+
+                  <div class="bg-black/20 rounded-xl p-3 border border-white/5 font-mono text-[9px] space-y-1">
+                    <div class="text-gray-500">MCP Configuration File:</div>
+                    <div class="text-gray-300 break-all select-all" x-text="item.config_path || 'No matching path detected'"></div>
+                  </div>
+
+                  <div class="space-y-2">
+                    <div class="flex justify-between items-center text-[10px] text-gray-500 font-semibold uppercase tracking-wider">
+                      <span>mcpServers JSON Config snippet</span>
+                      <button @click="copySnippet(item.name)" class="text-xs hover:text-white bg-white/5 px-2 py-1 rounded border border-white/5 transition duration-150 flex items-center gap-1 font-medium select-none">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                        Copy Snippet
+                      </button>
+                    </div>
+                    <pre class="bg-black/40 border border-white/5 rounded-xl p-3.5 font-mono text-[10px] text-brand-300 overflow-x-auto select-all" x-text="getSnippetJson()"></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+      </div>
+
+      <!-- ==================== LOGS TAB ==================== -->
+      <div x-show="activeTab === 'logs'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-6" style="display: none;">
+        
+        <div class="glass rounded-2xl p-6 flex flex-col h-[550px]">
+          
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 flex-shrink-0">
+            <div>
+              <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-brand-500 pulse-dot animate-pulse"></span> Application Engine Logs
+              </h2>
+              <p class="text-xs text-gray-400 mt-0.5 font-mono truncate max-w-[280px] sm:max-w-[450px]" :title="config.log_path" x-text="config.log_path || 'surface-proxy.log'"></p>
+            </div>
+            
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+              <input type="text" x-model="logsFilter" placeholder="Filter log contents..."
+                     class="bg-black/20 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500/50 transition w-full sm:w-44">
+              
+              <button @click="logsPaused = !logsPaused" class="text-xs bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl border border-white/5 transition duration-150 flex items-center gap-1 font-medium select-none"
+                      :class="logsPaused ? 'text-yellow-400 border-yellow-500/20 bg-yellow-500/5' : 'text-gray-400 hover:text-white'">
+                <span x-text="logsPaused ? 'Resume' : 'Pause'"></span>
+              </button>
+
+              <button @click="clearLogsView()" class="text-xs text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl border border-white/5 transition duration-150 font-medium select-none">
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Log terminal output container -->
+          <div id="log-terminal" @scroll="checkScroll()"
+               class="flex-grow bg-black/40 border border-white/5 rounded-xl p-4 font-mono text-xs overflow-y-auto overflow-x-hidden space-y-1.5 scroll-smooth select-text">
+            <template x-if="filteredLogs.length === 0">
+              <div class="text-center py-12 text-gray-600 italic">No log lines matched the current filter.</div>
+            </template>
+            <template x-for="(line, idx) in filteredLogs" :key="idx">
+              <div class="leading-relaxed break-all whitespace-pre-wrap select-text hover:bg-white/[0.02] px-1 rounded transition duration-75"
+                   :class="getLogLineClass(line)"
+                   x-html="formatLogLine(line)"></div>
+            </template>
+          </div>
+          
+          <!-- Term status -->
+          <div class="flex justify-between items-center text-[10px] text-gray-500 mt-3 flex-shrink-0">
+            <span x-text="'Showing ' + filteredLogs.length + ' of ' + logs.length + ' lines'"></span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full" :class="autoScroll ? 'bg-emerald-400' : 'bg-gray-600'"></span>
+              <span x-text="autoScroll ? 'Terminal auto-scroll active' : 'Scroll-locked (scroll down to release)'"></span>
+            </span>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/5 py-6 text-center text-xs text-gray-600 mt-auto bg-black/5">
+      <p>SurfaceProxy — &copy; 2026 Sentry Surface Inc. — <a href="https://sentrysurface.io" target="_blank" class="hover:text-gray-400 hover:underline transition">sentrysurface.io</a></p>
+    </footer>
+  </div>
+
+  <!-- Toast overlay -->
+  <div class="fixed bottom-6 right-6 z-50 transition duration-300"
+       x-show="toast.show"
+       x-transition:enter="transform ease-out duration-300 transition"
+       x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+       x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0"
+       style="display: none;">
+    <div class="glass border rounded-2xl p-4 shadow-2xl flex items-center gap-3 max-w-sm"
+         :class="toast.type === 'error' ? 'border-red-500/20 bg-red-950/20 text-red-300' : 'border-emerald-500/20 bg-emerald-950/20 text-emerald-300'">
+      <span class="text-base" x-text="toast.type === 'error' ? '⚠️' : '✓'"></span>
+      <div class="text-xs font-semibold" x-text="toast.message"></div>
     </div>
-  </main>
-
-  <footer class="border-t border-white/5 mt-12 py-5 text-center text-xs text-gray-600">
-    <p>SurfaceProxy — &copy; 2026 Sentry Surface Inc. — <a href="https://sentrysurface.io" class="hover:text-gray-400 transition">sentrysurface.io</a></p>
-  </footer>
+  </div>
 
   <script>
     function dashboard() {
       return {
+        activeTab: 'overview',
         connected: false,
         stats: {},
         sessions: [],
-        ws: null,
+        config: {},
+        allowlist: [],
+        blocklist: [],
+        firewallLog: [],
+        logs: [],
+        integrations: [],
+        newAllowPattern: '',
+        newBlockPattern: '',
+        allowPatternError: '',
+        blockPatternError: '',
+        logsFilter: '',
+        logsPaused: false,
+        autoScroll: true,
+        toast: { show: false, message: '', type: 'success' },
+        toastTimeout: null,
 
         get statCards() {
           return [
-            { label:'Active Sessions', icon:'⚡', value: this.stats.active_sessions ?? 0, color:'text-brand-400', sub:'Goroutine-isolated' },
-            { label:'Total Prune Ops', icon:'✂️', value: this.formatCount(this.stats.total_prune_ops ?? 0), color:'text-blue-400', sub:'DOM tokenizations' },
-            { label:'Raw Tokens', icon:'📄', value: this.formatCount(this.stats.total_raw_tokens ?? 0), color:'text-gray-300', sub:'Before pruning' },
-            { label:'Pruned Tokens', icon:'🗜️', value: this.formatCount(this.stats.total_pruned_tokens ?? 0), color:'text-emerald-400', sub:'After pruning' },
-          ]
+            { label: 'Active Sessions', icon: '⚡', value: this.stats.active_sessions ?? 0, color: 'text-brand-400', sub: 'Goroutine-isolated' },
+            { label: 'Total Prune Ops', icon: '✂️', value: this.formatCount(this.stats.total_prune_ops ?? 0), color: 'text-blue-400', sub: 'DOM tokenizations' },
+            { label: 'Raw Tokens', icon: '📄', value: this.formatCount(this.stats.total_raw_tokens ?? 0), color: 'text-gray-300', sub: 'Before pruning' },
+            { label: 'Pruned Tokens', icon: '🗜️', value: this.formatCount(this.stats.total_pruned_tokens ?? 0), color: 'text-emerald-400', sub: 'After pruning' },
+          ];
+        },
+
+        get filteredLogs() {
+          if (!this.logsFilter.trim()) return this.logs;
+          const filter = this.logsFilter.toLowerCase();
+          return this.logs.filter(line => line.toLowerCase().includes(filter));
         },
 
         init() {
-          this.connect()
-          this.fetchSessions()
-          setInterval(() => this.fetchSessions(), 3000)
+          this.connect();
+          this.fetchConfig();
+          this.fetchAllowlist();
+          this.fetchBlocklist();
+          this.fetchIntegrations();
+          this.fetchSessions();
+          this.fetchFirewallLog();
+          this.fetchLogs();
+          
+          setInterval(() => {
+            if (this.connected) {
+              if (this.activeTab === 'overview' || this.activeTab === 'analytics') {
+                this.fetchSessions();
+              }
+              if (this.activeTab === 'firewall') {
+                this.fetchFirewallLog();
+              }
+              if (this.activeTab === 'logs' && !this.logsPaused) {
+                this.fetchLogs();
+              }
+            }
+          }, 2500);
         },
 
         connect() {
-          const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-          this.ws = new WebSocket(`${proto}://${location.host}/api/stream`)
+          const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+          this.ws = new WebSocket(`${proto}://${location.host}/api/stream`);
 
-          this.ws.onopen = () => { this.connected = true }
+          this.ws.onopen = () => { 
+            this.connected = true; 
+            this.fetchConfig(); 
+          };
           this.ws.onclose = () => {
-            this.connected = false
-            setTimeout(() => this.connect(), 3000)
-          }
-          this.ws.onerror = () => { this.connected = false }
+            this.connected = false;
+            setTimeout(() => this.connect(), 3000);
+          };
+          this.ws.onerror = () => { this.connected = false; };
           this.ws.onmessage = (e) => {
-            try { this.stats = JSON.parse(e.data) } catch {}
-          }
+            try { this.stats = JSON.parse(e.data); } catch {}
+          };
+        },
+
+        fetchConfig() {
+          fetch('/api/config')
+            .then(r => r.json())
+            .then(data => { this.config = data || {}; })
+            .catch(() => {});
+        },
+
+        fetchAllowlist() {
+          fetch('/api/firewall/allowlist')
+            .then(r => r.json())
+            .then(data => { this.allowlist = data || []; })
+            .catch(() => {});
+        },
+
+        fetchBlocklist() {
+          fetch('/api/firewall/blocklist')
+            .then(r => r.json())
+            .then(data => { this.blocklist = data || []; })
+            .catch(() => {});
         },
 
         fetchSessions() {
           fetch('/api/sessions')
             .then(r => r.json())
-            .then(data => { this.sessions = data || [] })
-            .catch(() => {})
+            .then(data => { this.sessions = data || []; })
+            .catch(() => {});
+        },
+
+        fetchFirewallLog() {
+          fetch('/api/firewall/log')
+            .then(r => r.json())
+            .then(data => { this.firewallLog = data || []; })
+            .catch(() => {});
+        },
+
+        fetchLogs() {
+          fetch('/api/logs')
+            .then(r => r.json())
+            .then(data => { 
+              this.logs = data || [];
+              this.scrollToBottom();
+            })
+            .catch(() => {});
+        },
+
+        fetchIntegrations() {
+          fetch('/api/integrations')
+            .then(r => r.json())
+            .then(data => { this.integrations = data || []; })
+            .catch(() => {});
+        },
+
+        addRule(isAllow) {
+          const pattern = isAllow ? this.newAllowPattern.trim() : this.newBlockPattern.trim();
+          if (!pattern) return;
+          
+          try {
+            new RegExp(pattern);
+          } catch (e) {
+            if (isAllow) {
+              this.allowPatternError = 'Invalid regex: ' + e.message;
+            } else {
+              this.blockPatternError = 'Invalid regex: ' + e.message;
+            }
+            return;
+          }
+          
+          if (isAllow) this.allowPatternError = '';
+          else this.blockPatternError = '';
+
+          const endpoint = isAllow ? '/api/firewall/allowlist' : '/api/firewall/blocklist';
+          fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pattern: pattern })
+          })
+          .then(r => {
+            if (!r.ok) throw new Error('Failed to add rule');
+            return r.json();
+          })
+          .then(() => {
+            if (isAllow) {
+              this.newAllowPattern = '';
+              this.fetchAllowlist();
+            } else {
+              this.newBlockPattern = '';
+              this.fetchBlocklist();
+            }
+            this.showToast('Rule added successfully', 'success');
+          })
+          .catch(err => {
+            this.showToast(err.message, 'error');
+          });
+        },
+
+        deleteRule(pattern, isAllow) {
+          const endpoint = isAllow ? '/api/firewall/allowlist' : '/api/firewall/blocklist';
+          fetch(endpoint, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pattern: pattern })
+          })
+          .then(r => {
+            if (!r.ok) throw new Error('Failed to delete rule');
+            return r.json();
+          })
+          .then(() => {
+            if (isAllow) {
+              this.fetchAllowlist();
+            } else {
+              this.fetchBlocklist();
+            }
+            this.showToast('Rule removed successfully', 'success');
+          })
+          .catch(err => {
+            this.showToast(err.message, 'error');
+          });
+        },
+
+        showToast(message, type = 'success') {
+          if (this.toastTimeout) clearTimeout(this.toastTimeout);
+          this.toast.message = message;
+          this.toast.type = type;
+          this.toast.show = true;
+          this.toastTimeout = setTimeout(() => {
+            this.toast.show = false;
+          }, 3000);
+        },
+
+        clearLogsView() {
+          this.logs = [];
+        },
+
+        checkScroll() {
+          const el = document.getElementById('log-terminal');
+          if (!el) return;
+          const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+          this.autoScroll = distanceToBottom < 20;
+        },
+
+        scrollToBottom() {
+          this.$nextTick(() => {
+            const el = document.getElementById('log-terminal');
+            if (el && this.autoScroll) {
+              el.scrollTop = el.scrollHeight;
+            }
+          });
+        },
+
+        getSnippetJson() {
+          const cfgPath = this.config.config_path || 'C:\\Users\\YourName\\.surface-proxy\\config.json';
+          const snippet = {
+            "mcpServers": {
+              "surface-proxy": {
+                "command": "surface-proxy",
+                "args": ["mcp-mode", "--config", cfgPath]
+              }
+            }
+          };
+          return JSON.stringify(snippet, null, 2);
+        },
+
+        copySnippet(name) {
+          const text = this.getSnippetJson();
+          navigator.clipboard.writeText(text)
+            .then(() => {
+              this.showToast(`${name} MCP configuration copied`, 'success');
+            })
+            .catch(() => {
+              this.showToast('Failed to copy snippet', 'error');
+            });
         },
 
         formatCount(n) {
-          n = parseInt(n) || 0
-          if (n >= 1_000_000) return (n/1_000_000).toFixed(2) + 'M'
-          if (n >= 1_000) return (n/1_000).toFixed(1) + 'K'
-          return n.toString()
+          n = parseInt(n) || 0;
+          if (n >= 1000000) return (n/1000000).toFixed(2) + 'M';
+          if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+          return n.toString();
         },
 
         formatPct(n) {
-          return (parseFloat(n) || 0).toFixed(1)
+          return (parseFloat(n) || 0).toFixed(1);
         },
 
         formatBytes(b) {
-          b = parseInt(b) || 0
-          if (b >= 1<<20) return (b/(1<<20)).toFixed(2) + ' MB'
-          if (b >= 1<<10) return (b/(1<<10)).toFixed(2) + ' KB'
-          return b + ' B'
+          b = parseInt(b) || 0;
+          if (b >= 1048576) return (b/1048576).toFixed(2) + ' MB';
+          if (b >= 1024) return (b/1024).toFixed(2) + ' KB';
+          return b + ' B';
+        },
+
+        formatTime(ts) {
+          if (!ts) return '—';
+          try {
+            const date = new Date(ts);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+          } catch (e) {
+            return ts;
+          }
+        },
+
+        getLogLineClass(line) {
+          if (line.includes('[ERROR]') || line.includes('error') || line.toLowerCase().includes('fail')) return 'text-red-400';
+          if (line.includes('[WARN]') || line.includes('warning')) return 'text-yellow-400';
+          if (line.includes('[UI]')) return 'text-brand-400';
+          if (line.includes('[MCP]')) return 'text-cyan-400';
+          if (line.includes('[FW]') || line.includes('firewall')) return 'text-emerald-400';
+          return 'text-gray-300';
+        },
+
+        formatLogLine(line) {
+          let escaped = line
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+          
+          escaped = escaped.replace(/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})/, '<span class="text-gray-500">$1</span>');
+          escaped = escaped.replace(/(\[INFO\])/g, '<span class="text-gray-400">$1</span>');
+          escaped = escaped.replace(/(\[ERROR\])/g, '<span class="text-red-400 font-bold">$1</span>');
+          escaped = escaped.replace(/(\[WARN\])/g, '<span class="text-yellow-400 font-bold">$1</span>');
+          escaped = escaped.replace(/(\[UI\])/g, '<span class="text-brand-400 font-bold">$1</span>');
+          escaped = escaped.replace(/(\[MCP\])/g, '<span class="text-cyan-400 font-bold">$1</span>');
+          
+          return escaped;
         }
-      }
+      };
     }
   </script>
 </body>

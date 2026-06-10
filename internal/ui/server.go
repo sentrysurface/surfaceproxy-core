@@ -202,7 +202,17 @@ func (s *Server) buildSessionsPayload() []sessionPayload {
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(s.loader.GetConfig())
+	cfg := s.loader.GetConfig()
+	response := struct {
+		*config.Config
+		ConfigPath string `json:"config_path"`
+		LogPath    string `json:"log_path"`
+	}{
+		Config:     cfg,
+		ConfigPath: s.loader.Path(),
+		LogPath:    filepath.Join(filepath.Dir(s.loader.Path()), "surface-proxy.log"),
+	}
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // ── /api/firewall/allowlist & blocklist ──────────────────────────────────────
