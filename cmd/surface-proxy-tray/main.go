@@ -21,9 +21,11 @@ func main() {
 	configPath := fs.String("config", "surface-proxy.json", "Path to configuration policy file")
 	fs.Parse(os.Args[1:])
 
+	resolvedPath := config.ResolvePath(*configPath)
+	config.SetupLogging(resolvedPath)
+
 	log.Printf("[TRAY] SurfaceProxy %s — starting system tray daemon", version.Version)
 
-	resolvedPath := config.ResolvePath(*configPath)
 	a, err := app.NewApp(resolvedPath, app.ModeFull)
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to initialize application: %v", err)

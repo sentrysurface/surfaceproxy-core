@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (matrix.goos == 'darwin' && 'macos-latest') || 'ubuntu-latest' }}
     strategy:
       matrix:
         include:
@@ -59,12 +59,34 @@ jobs:
             ./cmd/surface-proxy
           echo "BINARY=${BINARY}" >> "$GITHUB_ENV"
 
+      - name: Build surface-proxy-tray
+        if: matrix.goos == 'windows' || matrix.goos == 'darwin'
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: ${{ matrix.goos == 'darwin' && '1' || '0' }}
+        run: |
+          BINARY_TRAY="surface-proxy-tray-${{ steps.version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}"
+          LDFLAGS="-s -w -X github.com/sentrysurface/surface-proxy/internal/version.Version=${{ steps.version.outputs.version }} -X github.com/sentrysurface/surface-proxy/internal/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X github.com/sentrysurface/surface-proxy/internal/version.Commit=${GITHUB_SHA::8}"
+          if [[ "${{ matrix.goos }}" == "windows" ]]; then
+            LDFLAGS="${LDFLAGS} -H=windowsgui"
+          fi
+          go build \
+            -ldflags="${LDFLAGS}" \
+            -trimpath \
+            -o "${BINARY_TRAY}" \
+            ./cmd/surface-proxy-tray
+          echo "BINARY_TRAY=${BINARY_TRAY}" >> "$GITHUB_ENV"
+
       - name: Compress binary
         run: |
+          cp surface-proxy.json config-example.json
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
-            zip "${BINARY%.exe}.zip" "$BINARY"
+            zip "${BINARY%.exe}.zip" "$BINARY" "$BINARY_TRAY" config-example.json README.md
+          elif [[ "${{ matrix.goos }}" == "darwin" ]]; then
+            tar czf "${BINARY}.tar.gz" "$BINARY" "$BINARY_TRAY" config-example.json README.md
           else
-            tar czf "${BINARY}.tar.gz" "$BINARY"
+            tar czf "${BINARY}.tar.gz" "$BINARY" config-example.json README.md
           fi
 
       - name: Upload artifact

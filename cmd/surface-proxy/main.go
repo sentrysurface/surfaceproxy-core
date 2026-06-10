@@ -57,6 +57,7 @@ func runDaemon(args []string) {
 	}
 
 	resolvedPath := config.ResolvePath(*configPath)
+	config.SetupLogging(resolvedPath)
 	log.Printf("[INIT] SurfaceProxy %s — Bootstrapping core engine using policy: %s", buildInfo(), resolvedPath)
 
 	a, err := app.NewApp(resolvedPath, app.ModeFull)
@@ -105,6 +106,7 @@ func runMCPMode(args []string) {
 	// All log output must go to stderr so it doesn't corrupt the RPC stream.
 	log.SetOutput(os.Stderr)
 	resolvedPath := config.ResolvePath(*configPath)
+	config.SetupLogging(resolvedPath)
 	log.Printf("[MCP] surface-proxy %s — starting in MCP stdio mode, config: %s", buildInfo(), resolvedPath)
 
 	a, err := app.NewApp(resolvedPath, app.ModeMCPOnly)
