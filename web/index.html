@@ -430,23 +430,34 @@
                   <th class="pb-3 pr-4">Timestamp</th>
                   <th class="pb-3 pr-4">Target URL</th>
                   <th class="pb-3 pr-4">Outcome</th>
-                  <th class="pb-3">Reason</th>
+                  <th class="pb-3 pr-4">Reason</th>
+                  <th class="pb-3 text-right">Quick Rules</th>
                 </tr>
               </thead>
               <tbody class="font-mono divide-y divide-white/5">
                 <template x-if="firewallLog.length === 0">
-                  <tr><td colspan="4" class="py-8 text-center text-gray-500">No requests evaluated yet.</td></tr>
+                  <tr><td colspan="5" class="py-8 text-center text-gray-500">No requests evaluated yet.</td></tr>
                 </template>
                 <template x-for="log in firewallLog" :key="log.timestamp + log.url">
                   <tr class="text-gray-300 hover:bg-white/[0.01]">
                     <td class="py-3 pr-4 text-gray-500 font-sans" x-text="formatTime(log.timestamp)"></td>
-                    <td class="py-3 pr-4 max-w-[280px] sm:max-w-[400px] truncate select-all" :title="log.url" x-text="log.url"></td>
-                    <td class="py-3 pr-4">
+                    <td class="py-3 pr-4 max-w-[200px] sm:max-w-[300px] truncate select-all" :title="log.url" x-text="log.url"></td>
+                    <td class="py-3 pr-4 flex-shrink-0">
                       <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider"
                             :class="log.allowed ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/10' : 'bg-red-500/15 text-red-400 border border-red-500/10'"
                             x-text="log.allowed ? 'ALLOWED' : 'BLOCKED'"></span>
                     </td>
-                    <td class="py-3 text-gray-400" x-text="log.reason"></td>
+                    <td class="py-3 pr-4 text-gray-400 truncate max-w-[200px]" :title="log.reason" x-text="log.reason"></td>
+                    <td class="py-3 text-right">
+                      <div class="flex items-center justify-end gap-1">
+                        <button @click="quickAddRule(log.url, true)" class="text-[9px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded transition font-semibold flex items-center gap-1 select-none">
+                          Allow
+                        </button>
+                        <button @click="quickAddRule(log.url, false)" class="text-[9px] bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded transition font-semibold flex items-center gap-1 select-none">
+                          Block
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 </template>
               </tbody>
@@ -1064,6 +1075,36 @@
           .catch(err => {
             this.showToast(err.message, 'error');
             event.target.value = '';
+          });
+        },
+
+        quickAddRule(urlStr, isAllow) {
+          let pattern = '';
+          try {
+            const url = new URL(urlStr);
+            const escapedHost = url.hostname.replace(/\./g, '\\.');
+            pattern = `^https?://([a-zA-Z0-9-]+\\.)*${escapedHost}(/.*)?$`;
+          } catch (e) {
+            pattern = '^' + urlStr.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          }
+
+          const endpoint = isAllow ? '/api/firewall/allowlist' : '/api/firewall/blocklist';
+          fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pattern: pattern, enabled: true })
+          })
+          .then(r => {
+            if (!r.ok) return r.json().then(err => { throw new Error(err.error || 'Failed to add rule'); });
+            return r.json();
+          })
+          .then(() => {
+            this.fetchAllowlist();
+            this.fetchBlocklist();
+            this.showToast(`Quick rule added: ${isAllow ? 'Allow' : 'Block'} domain`, 'success');
+          })
+          .catch(err => {
+            this.showToast(err.message, 'error');
           });
         },
 
