@@ -783,6 +783,9 @@
         autoScroll: true,
         toast: { show: false, message: '', type: 'success' },
         toastTimeout: null,
+        editingRulePattern: '',
+        editingRuleText: '',
+        editingRuleType: '',
 
         get statCards() {
           return [
@@ -937,7 +940,8 @@
           });
         },
 
-        deleteRule(pattern, isAllow) {
+        deleteRule(rule, isAllow) {
+          const pattern = typeof rule === 'object' ? rule.pattern : rule;
           const endpoint = isAllow ? '/api/firewall/allowlist' : '/api/firewall/blocklist';
           fetch(endpoint, {
             method: 'DELETE',
@@ -958,6 +962,108 @@
           })
           .catch(err => {
             this.showToast(err.message, 'error');
+          });
+        },
+
+        toggleRule(rule, isAllow) {
+          const endpoint = isAllow ? '/api/firewall/allowlist' : '/api/firewall/blocklist';
+          fetch(endpoint, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              old_pattern: rule.pattern,
+              old_enabled: rule.enabled,
+              new_pattern: rule.pattern,
+              new_enabled: !rule.enabled
+            })
+          })
+          .then(r => {
+            if (!r.ok) return r.json().then(err => { throw new Error(err.error || 'Failed to toggle rule'); });
+            return r.json();
+          })
+          .then(() => {
+            if (isAllow) this.fetchAllowlist();
+            else this.fetchBlocklist();
+            this.showToast(`Rule ${!rule.enabled ? 'activated' : 'deactivated'}`, 'success');
+          })
+          .catch(err => {
+            this.showToast(err.message, 'error');
+          });
+        },
+
+        startEditRule(rule, isAllow) {
+          this.editingRulePattern = rule.pattern;
+          this.editingRuleText = rule.pattern;
+          this.editingRuleType = isAllow ? 'allow' : 'block';
+        },
+
+        cancelRuleEdit() {
+          this.editingRulePattern = '';
+          this.editingRuleText = '';
+          this.editingRuleType = '';
+        },
+
+        saveRuleEdit(rule, isAllow) {
+          const newText = this.editingRuleText.trim();
+          if (!newText) return;
+          try {
+            new RegExp(newText);
+          } catch (e) {
+            this.showToast('Invalid regex pattern: ' + e.message, 'error');
+            return;
+          }
+
+          const endpoint = isAllow ? '/api/firewall/allowlist' : '/api/firewall/blocklist';
+          fetch(endpoint, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              old_pattern: rule.pattern,
+              old_enabled: rule.enabled,
+              new_pattern: newText,
+              new_enabled: rule.enabled
+            })
+          })
+          .then(r => {
+            if (!r.ok) return r.json().then(err => { throw new Error(err.error || 'Failed to edit rule'); });
+            return r.json();
+          })
+          .then(() => {
+            if (isAllow) this.fetchAllowlist();
+            else this.fetchBlocklist();
+            this.cancelRuleEdit();
+            this.showToast('Rule updated successfully', 'success');
+          })
+          .catch(err => {
+            this.showToast(err.message, 'error');
+          });
+        },
+
+        uploadRules(event, isAllow) {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('type', isAllow ? 'allowlist' : 'blocklist');
+
+          fetch('/api/firewall/upload', {
+            method: 'POST',
+            body: formData
+          })
+          .then(r => {
+            if (!r.ok) return r.json().then(err => { throw new Error(err.error || 'Upload failed'); });
+            return r.json();
+          })
+          .then(data => {
+            if (isAllow) this.fetchAllowlist();
+            else this.fetchBlocklist();
+            this.showToast(data.status || `Uploaded rules successfully`, 'success');
+            event.target.value = '';
+          })
+          .catch(err => {
+            this.showToast(err.message, 'error');
+            event.target.value = '';
           });
         },
 
