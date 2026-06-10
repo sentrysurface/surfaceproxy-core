@@ -349,6 +349,7 @@ func (s *Server) handleIntegrations(w http.ResponseWriter, r *http.Request) {
 	results := []integrationStatus{
 		s.checkIntegration("Cursor", cursorMCPPath()),
 		s.checkIntegration("VS Code", vscodeMCPPath()),
+		s.checkIntegration("Claude Desktop", claudeDesktopMCPPath()),
 	}
 	_ = json.NewEncoder(w).Encode(results)
 }
@@ -392,6 +393,21 @@ func vscodeMCPPath() string {
 		return filepath.Join(home, "Library", "Application Support", "Code", "User", "mcp.json")
 	default:
 		return filepath.Join(home, ".config", "Code", "User", "mcp.json")
+	}
+}
+
+func claudeDesktopMCPPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	switch {
+	case fileExists(filepath.Join(home, "AppData", "Roaming", "Claude", "claude_desktop_config.json")):
+		return filepath.Join(home, "AppData", "Roaming", "Claude", "claude_desktop_config.json")
+	case fileExists(filepath.Join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json")):
+		return filepath.Join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json")
+	default:
+		return filepath.Join(home, ".config", "Claude", "claude_desktop_config.json")
 	}
 }
 
