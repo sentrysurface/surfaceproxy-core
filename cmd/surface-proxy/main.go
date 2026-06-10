@@ -161,7 +161,8 @@ func runInit(args []string) {
 	}
 
 	if *dryRun {
-		fmt.Println("[DRY-RUN] No files will be written.\n")
+		fmt.Println("[DRY-RUN] No files will be written.")
+		fmt.Println()
 	}
 
 	var registered int
