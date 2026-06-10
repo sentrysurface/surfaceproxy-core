@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/sentrysurface/surface-proxy/internal/app"
+	"github.com/sentrysurface/surface-proxy/internal/config"
 	"github.com/sentrysurface/surface-proxy/internal/tray"
 	"github.com/sentrysurface/surface-proxy/internal/version"
 )
@@ -22,7 +23,8 @@ func main() {
 
 	log.Printf("[TRAY] SurfaceProxy %s — starting system tray daemon", version.Version)
 
-	a, err := app.NewApp(*configPath, app.ModeFull)
+	resolvedPath := config.ResolvePath(*configPath)
+	a, err := app.NewApp(resolvedPath, app.ModeFull)
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to initialize application: %v", err)
 	}

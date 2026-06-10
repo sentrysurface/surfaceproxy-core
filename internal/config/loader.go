@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -17,8 +18,24 @@ type Loader struct {
 	watcher *fsnotify.Watcher
 }
 
+// ResolvePath resolves the configuration file path. If the default "surface-proxy.json"
+// is requested but does not exist in the current working directory, it falls back
+// to ~/.surface-proxy/config.json.
+func ResolvePath(path string) string {
+	if path == "surface-proxy.json" {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			home, errHome := os.UserHomeDir()
+			if errHome == nil {
+				return filepath.Join(home, ".surface-proxy", "config.json")
+			}
+		}
+	}
+	return path
+}
+
 func NewLoader(path string) (*Loader, error) {
-	l := &Loader{path: path}
+	resolvedPath := ResolvePath(path)
+	l := &Loader{path: resolvedPath}
 	cfg, err := l.load()
 	if err != nil {
 		return nil, err
@@ -36,6 +53,20 @@ func (l *Loader) GetConfig() *Config {
 func (l *Loader) load() (*Config, error) {
 	file, err := os.Open(l.path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			// Try to create the parent directories and write the default configuration
+			if errDir := os.MkdirAll(filepath.Dir(l.path), 0755); errDir == nil {
+				cfg := DefaultConfig()
+				data, errMarshal := json.MarshalIndent(cfg, "", "  ")
+				if errMarshal == nil {
+					if errWrite := os.WriteFile(l.path, data, 0644); errWrite == nil {
+						return cfg, nil
+					}
+				}
+			}
+			// Fallback: return default config in memory if writing fails
+			return DefaultConfig(), nil
+		}
 		return nil, fmt.Errorf("failed to open config file: %w", err)
 	}
 	defer file.Close()

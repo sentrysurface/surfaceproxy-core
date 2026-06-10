@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/getlantern/systray"
 	"github.com/sentrysurface/surface-proxy/internal/telemetry"
@@ -44,7 +45,7 @@ func Run(opts Options) {
 		go func() {
 			for {
 				updateStats(mStats, opts.Ledger)
-				<-make(chan struct{}) // replaced by ticker in real use
+				time.Sleep(3 * time.Second)
 			}
 		}()
 

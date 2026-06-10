@@ -12,6 +12,7 @@ import (
 
 	"github.com/sentrysurface/surface-proxy/internal/app"
 	"github.com/sentrysurface/surface-proxy/internal/bootstrap"
+	"github.com/sentrysurface/surface-proxy/internal/config"
 	"github.com/sentrysurface/surface-proxy/internal/version"
 )
 
@@ -26,7 +27,7 @@ func main() {
 	//   surface-proxy mcp-mode [flags]     — MCP-only stdio server (for Cursor / Claude Desktop)
 	//   surface-proxy init [flags]         — self-register MCP config in Cursor / VS Code
 	//   surface-proxy --version            — print version and exit
-
+	//
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "mcp-mode":
@@ -55,9 +56,10 @@ func runDaemon(args []string) {
 		os.Exit(0)
 	}
 
-	log.Printf("[INIT] SurfaceProxy %s — Bootstrapping core engine using policy: %s", buildInfo(), *configPath)
+	resolvedPath := config.ResolvePath(*configPath)
+	log.Printf("[INIT] SurfaceProxy %s — Bootstrapping core engine using policy: %s", buildInfo(), resolvedPath)
 
-	a, err := app.NewApp(*configPath, app.ModeFull)
+	a, err := app.NewApp(resolvedPath, app.ModeFull)
 	if err != nil {
 		log.Fatalf("[FATAL] Failed to initialize application: %v", err)
 	}
@@ -102,9 +104,10 @@ func runMCPMode(args []string) {
 	// In mcp-mode, stdout is owned by the JSON-RPC protocol.
 	// All log output must go to stderr so it doesn't corrupt the RPC stream.
 	log.SetOutput(os.Stderr)
-	log.Printf("[MCP] surface-proxy %s — starting in MCP stdio mode, config: %s", buildInfo(), *configPath)
+	resolvedPath := config.ResolvePath(*configPath)
+	log.Printf("[MCP] surface-proxy %s — starting in MCP stdio mode, config: %s", buildInfo(), resolvedPath)
 
-	a, err := app.NewApp(*configPath, app.ModeMCPOnly)
+	a, err := app.NewApp(resolvedPath, app.ModeMCPOnly)
 	if err != nil {
 		log.Fatalf("[FATAL] %v", err)
 	}
