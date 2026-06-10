@@ -9,16 +9,6 @@ import (
 	"github.com/sentrysurface/surface-proxy/internal/bootstrap"
 )
 
-// writeAndRegister is a test helper that calls Register targeting a temp directory.
-func withTempConfigPath(t *testing.T, editor bootstrap.Editor, fn func(configPath string)) {
-	t.Helper()
-	tmp := t.TempDir()
-	// Patch the config path to a temp file by creating the directory structure
-	// We can't override ConfigPath easily, so we test Register via the file directly.
-	configPath := filepath.Join(tmp, "mcp.json")
-	fn(configPath)
-}
-
 func TestRegister_FreshFile(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := filepath.Join(tmp, "Cursor", "User", "mcp.json")
