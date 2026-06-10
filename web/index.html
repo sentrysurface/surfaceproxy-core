@@ -262,14 +262,61 @@
                 <template x-if="allowlist.length === 0">
                   <div class="text-center py-8 text-gray-500 border border-dashed border-white/5 rounded-xl">No allow rules configured. All URLs will fall back to blocked.</div>
                 </template>
-                <template x-for="rule in allowlist" :key="rule">
+                <template x-for="rule in allowlist" :key="rule.pattern">
                   <div class="flex items-center justify-between bg-white/5 hover:bg-white/[0.08] px-3.5 py-2 rounded-xl border border-white/5 transition duration-150 group">
-                    <span class="text-gray-300 select-all truncate pr-2" :title="rule" x-text="rule"></span>
-                    <button @click="deleteRule(rule, true)" class="text-gray-500 hover:text-red-400 p-1 rounded transition md:opacity-0 group-hover:opacity-100 focus:opacity-100">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
+                    <div class="flex items-center gap-2 max-w-[80%] flex-grow">
+                      <!-- Active / Inactive checkbox -->
+                      <input type="checkbox" :checked="rule.enabled" @change="toggleRule(rule, true)" 
+                             class="rounded border-white/10 bg-black/20 text-brand-500 focus:ring-brand-500/30 focus:ring-2 w-3.5 h-3.5 flex-shrink-0 cursor-pointer">
+                      
+                      <!-- Rule Pattern Text / Input -->
+                      <template x-if="editingRulePattern === rule.pattern && editingRuleType === 'allow'">
+                        <input type="text" x-model="editingRuleText" @keydown.enter="saveRuleEdit(rule, true)" @keydown.escape="cancelRuleEdit()"
+                               class="bg-black/40 border border-brand-500/50 rounded px-2 py-0.5 text-xs text-white placeholder-gray-500 focus:outline-none w-full">
+                      </template>
+                      <template x-if="editingRulePattern !== rule.pattern || editingRuleType !== 'allow'">
+                        <span class="truncate pr-2 cursor-pointer select-all" :title="rule.pattern"
+                              :class="!rule.enabled ? 'line-through text-gray-600' : 'text-gray-300'"
+                              @click="startEditRule(rule, true)" x-text="rule.pattern"></span>
+                      </template>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                      <!-- Save / Edit toggle -->
+                      <template x-if="editingRulePattern === rule.pattern && editingRuleType === 'allow'">
+                        <button @click="saveRuleEdit(rule, true)" class="text-emerald-400 hover:text-emerald-300 p-1 rounded transition">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </button>
+                      </template>
+                      <template x-if="editingRulePattern === rule.pattern && editingRuleType === 'allow'">
+                        <button @click="cancelRuleEdit()" class="text-gray-500 hover:text-gray-400 p-1 rounded transition">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                      </template>
+                      <template x-if="editingRulePattern !== rule.pattern || editingRuleType !== 'allow'">
+                        <button @click="startEditRule(rule, true)" class="text-gray-500 hover:text-brand-400 p-1 rounded transition opacity-0 group-hover:opacity-100 focus:opacity-100">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                      </template>
+                      
+                      <!-- Delete -->
+                      <button @click="deleteRule(rule, true)" class="text-gray-500 hover:text-red-400 p-1 rounded transition opacity-0 group-hover:opacity-100 focus:opacity-100">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    </div>
                   </div>
                 </template>
+              </div>
+
+              <!-- Bulk upload allowlist -->
+              <div class="flex items-center justify-between border-t border-white/5 pt-4 mt-4 text-[10px] text-gray-500">
+                <span>Bulk import (.txt list):</span>
+                <label class="cursor-pointer bg-white/5 hover:bg-white/10 border border-white/5 text-gray-400 hover:text-white px-2.5 py-1 rounded-lg transition duration-150 flex items-center gap-1.5 font-medium select-none">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                  Upload File
+                  <input type="file" @change="uploadRules($event, true)" class="hidden" accept=".txt,.csv">
+                </label>
               </div>
             </div>
           </div>
@@ -304,14 +351,61 @@
                 <template x-if="blocklist.length === 0">
                   <div class="text-center py-8 text-gray-500 border border-dashed border-white/5 rounded-xl">No active blocks configured.</div>
                 </template>
-                <template x-for="rule in blocklist" :key="rule">
-                  <div class="flex items-center justify-between bg-white/5 hover:bg-white/[0.08] px-3.5 py-2 rounded-xl border border-white/5 transition duration-150 group">
-                    <span class="text-gray-300 select-all truncate pr-2" :title="rule" x-text="rule"></span>
-                    <button @click="deleteRule(rule, false)" class="text-gray-500 hover:text-red-400 p-1 rounded transition md:opacity-0 group-hover:opacity-100 focus:opacity-100">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
+                <template x-for="rule in blocklist" :key="rule.pattern">
+                  <div class="flex items-center justify-between bg-white/5 hover:bg-white/[0.08] px-3 py-2 rounded-xl border border-white/5 transition duration-150 group">
+                    <div class="flex items-center gap-2 max-w-[80%] flex-grow">
+                      <!-- Active / Inactive checkbox -->
+                      <input type="checkbox" :checked="rule.enabled" @change="toggleRule(rule, false)" 
+                             class="rounded border-white/10 bg-black/20 text-brand-500 focus:ring-brand-500/30 focus:ring-2 w-3.5 h-3.5 flex-shrink-0 cursor-pointer">
+                      
+                      <!-- Rule Pattern Text / Input -->
+                      <template x-if="editingRulePattern === rule.pattern && editingRuleType === 'block'">
+                        <input type="text" x-model="editingRuleText" @keydown.enter="saveRuleEdit(rule, false)" @keydown.escape="cancelRuleEdit()"
+                               class="bg-black/40 border border-brand-500/50 rounded px-2 py-0.5 text-xs text-white placeholder-gray-500 focus:outline-none w-full">
+                      </template>
+                      <template x-if="editingRulePattern !== rule.pattern || editingRuleType !== 'block'">
+                        <span class="truncate pr-2 cursor-pointer select-all" :title="rule.pattern"
+                              :class="!rule.enabled ? 'line-through text-gray-600' : 'text-gray-300'"
+                              @click="startEditRule(rule, false)" x-text="rule.pattern"></span>
+                      </template>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                      <!-- Save / Edit toggle -->
+                      <template x-if="editingRulePattern === rule.pattern && editingRuleType === 'block'">
+                        <button @click="saveRuleEdit(rule, false)" class="text-emerald-400 hover:text-emerald-300 p-1 rounded transition">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </button>
+                      </template>
+                      <template x-if="editingRulePattern === rule.pattern && editingRuleType === 'block'">
+                        <button @click="cancelRuleEdit()" class="text-gray-500 hover:text-gray-400 p-1 rounded transition">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                      </template>
+                      <template x-if="editingRulePattern !== rule.pattern || editingRuleType !== 'block'">
+                        <button @click="startEditRule(rule, false)" class="text-gray-500 hover:text-brand-400 p-1 rounded transition opacity-0 group-hover:opacity-100 focus:opacity-100">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                      </template>
+                      
+                      <!-- Delete -->
+                      <button @click="deleteRule(rule, false)" class="text-gray-500 hover:text-red-400 p-1 rounded transition opacity-0 group-hover:opacity-100 focus:opacity-100">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    </div>
                   </div>
                 </template>
+              </div>
+
+              <!-- Bulk upload blocklist -->
+              <div class="flex items-center justify-between border-t border-white/5 pt-4 mt-4 text-[10px] text-gray-500">
+                <span>Bulk import (.txt list):</span>
+                <label class="cursor-pointer bg-white/5 hover:bg-white/10 border border-white/5 text-gray-400 hover:text-white px-2.5 py-1 rounded-lg transition duration-150 flex items-center gap-1.5 font-medium select-none">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                  Upload File
+                  <input type="file" @change="uploadRules($event, false)" class="hidden" accept=".txt,.csv">
+                </label>
               </div>
             </div>
           </div>

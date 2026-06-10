@@ -2,6 +2,7 @@ package firewall
 
 import (
 	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,6 +45,9 @@ func NewRuleEngine(cfg config.FirewallConfig) (*RuleEngine, error) {
 func (re *RuleEngine) UpdateRules(cfg config.FirewallConfig) error {
 	var newAllow []*regexp.Regexp
 	for _, raw := range cfg.Allowlist {
+		if strings.HasPrefix(raw, "_disabled_:") {
+			continue
+		}
 		r, err := regexp.Compile(raw)
 		if err != nil {
 			return err
@@ -53,6 +57,9 @@ func (re *RuleEngine) UpdateRules(cfg config.FirewallConfig) error {
 
 	var newBlock []*regexp.Regexp
 	for _, raw := range cfg.Blocklist {
+		if strings.HasPrefix(raw, "_disabled_:") {
+			continue
+		}
 		r, err := regexp.Compile(raw)
 		if err != nil {
 			return err
