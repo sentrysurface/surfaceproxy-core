@@ -67,7 +67,7 @@ func (s *Session) Start(ctx context.Context) {
 			// Intercept and parse frame
 			msg, err := ParseFrame(data)
 			if err == nil && msg != nil {
-				// Intercept Page.navigate method to enforce firewall
+				// Intercept Page.navigate method to enforce firewall and record URL
 				if msg.Method == "Page.navigate" {
 					var params struct {
 						URL string `json:"url"`
@@ -87,6 +87,10 @@ func (s *Session) Start(ctx context.Context) {
 							respData, _ := json.Marshal(errResp)
 							_ = s.agentConn.WriteMessage(websocket.TextMessage, respData)
 							continue
+						}
+						// Record the navigated URL in the telemetry ledger
+						if s.ledger != nil {
+							s.ledger.UpdateSessionURL(s.ID, params.URL)
 						}
 					}
 				}
@@ -121,7 +125,8 @@ func (s *Session) Start(ctx context.Context) {
 					var resultObj map[string]interface{}
 					if json.Unmarshal(msg.Result, &resultObj) == nil {
 						if htmlVal, ok := resultObj["outerHTML"].(string); ok {
-							prunedHTML, err := s.pruner.Prune([]byte(htmlVal))
+							// Use PruneWithSession to record token reduction stats under the proxy session
+							prunedHTML, err := s.pruner.PruneWithSession([]byte(htmlVal), s.ID)
 							if err == nil {
 								// Compute structural diff
 								diffData, changed := s.diffEngine.ComputeDiff(s.ID, prunedHTML)
