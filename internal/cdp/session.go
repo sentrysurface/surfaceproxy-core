@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/sentrysurface/surface-proxy/internal/firewall"
 	"github.com/sentrysurface/surface-proxy/internal/pruning"
+	"github.com/sentrysurface/surface-proxy/internal/telemetry"
 	"github.com/sentrysurface/surface-proxy/internal/util"
 )
 
@@ -20,11 +21,12 @@ type Session struct {
 	evaluator   firewall.Evaluator
 	pruner      *pruning.Pruner
 	diffEngine  *pruning.DiffEngine
+	ledger      *telemetry.Ledger
 	mu          sync.Mutex
 	closed      bool
 }
 
-func NewSession(id string, agent *websocket.Conn, browserURL string, ev firewall.Evaluator, pr *pruning.Pruner, de *pruning.DiffEngine) (*Session, error) {
+func NewSession(id string, agent *websocket.Conn, browserURL string, ev firewall.Evaluator, pr *pruning.Pruner, de *pruning.DiffEngine, ledger *telemetry.Ledger) (*Session, error) {
 	// Evaluate browser URL initially if it is specified
 	if browserURL != "" {
 		allowed, reason, err := ev.EvaluateURL(browserURL)
@@ -45,6 +47,7 @@ func NewSession(id string, agent *websocket.Conn, browserURL string, ev firewall
 		evaluator:   ev,
 		pruner:      pr,
 		diffEngine:  de,
+		ledger:      ledger,
 	}, nil
 }
 
