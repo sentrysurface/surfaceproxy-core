@@ -497,3 +497,65 @@ func (h *Handlers) getCurrentPrunedDOM(pageKey string) (string, error) {
 	diff, _ := h.diffEngine.ComputeDiff(pageKey, pruned)
 	return string(diff), nil
 }
+
+// ── Target Control Helpers ───────────────────────────────────────────────────
+
+func wsToHTTP(wsURL string) string {
+	if wsURL == "" {
+		return ""
+	}
+	u, err := url.Parse(wsURL)
+	if err != nil {
+		return ""
+	}
+	u.Scheme = "http"
+	if strings.HasPrefix(wsURL, "wss://") {
+		u.Scheme = "https"
+	}
+	u.Path = ""
+	u.RawQuery = ""
+	return u.String()
+}
+
+func createNewPage(browserWSURL string) (string, string, error) {
+	httpAddr := wsToHTTP(browserWSURL)
+	if httpAddr == "" {
+		return "", "", fmt.Errorf("invalid browser WS URL: %s", browserWSURL)
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(httpAddr + "/json/new")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create new page target: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("create new page target returned status %d", resp.StatusCode)
+	}
+
+	var target struct {
+		ID                   string `json:"id"`
+		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&target); err != nil {
+		return "", "", fmt.Errorf("failed to decode new page target response: %w", err)
+	}
+
+	return target.ID, target.WebSocketDebuggerURL, nil
+}
+
+func closePage(browserWSURL, targetID string) error {
+	httpAddr := wsToHTTP(browserWSURL)
+	if httpAddr == "" || targetID == "" {
+		return nil
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(httpAddr + "/json/close/" + targetID)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
