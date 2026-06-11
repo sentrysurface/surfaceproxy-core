@@ -668,9 +668,7 @@ func (s *Server) registerMCP(path string) error {
 	}
 
 	// If the running executable is the tray daemon, rewrite the path to the CLI binary
-	if strings.Contains(exePath, "surface-proxy-tray") {
-		exePath = strings.Replace(exePath, "surface-proxy-tray", "surface-proxy", 1)
-	}
+	exePath = strings.Replace(exePath, "surface-proxy-tray", "surface-proxy", 1)
 
 	// Read existing config if it exists
 	var data map[string]interface{}
