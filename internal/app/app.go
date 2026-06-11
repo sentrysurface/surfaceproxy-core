@@ -3,7 +3,10 @@ package app
 import (
 	"context"
 	"log"
+	"net"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/sentrysurface/surface-proxy/internal/browser"
 	"github.com/sentrysurface/surface-proxy/internal/cdp"
@@ -42,6 +45,23 @@ func NewApp(configPath string, mode Mode) (*App, error) {
 		return nil, err
 	}
 	cfg := loader.GetConfig()
+
+	// If we are in MCP-only mode, check if the full daemon is already running
+	// on the configured proxy address. If it is, connect to it as an external browser
+	// instead of launching a separate headless Chrome instance.
+	if mode == ModeMCPOnly {
+		localAddr := cfg.ListenAddr
+		if strings.HasPrefix(localAddr, ":") {
+			localAddr = "127.0.0.1" + localAddr
+		}
+		conn, errDial := net.DialTimeout("tcp", localAddr, 200*time.Millisecond)
+		if errDial == nil {
+			conn.Close()
+			log.Printf("[APP] Detected running daemon at %s — reusing its browser session via CDP proxy", localAddr)
+			cfg.Browser.Mode = "external"
+			cfg.TargetBrowserURL = "ws://" + localAddr
+		}
+	}
 
 	fw, err := firewall.NewRuleEngine(cfg.Firewall)
 	if err != nil {

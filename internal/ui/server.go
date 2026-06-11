@@ -508,6 +508,13 @@ func (s *Server) checkIntegration(name, path string) integrationStatus {
 }
 
 func cursorMCPPath() string {
+	appData := os.Getenv("APPDATA")
+	if appData != "" {
+		path := filepath.Join(appData, "Cursor", "User", "mcp.json")
+		if fileExists(path) {
+			return path
+		}
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
@@ -523,21 +530,48 @@ func cursorMCPPath() string {
 }
 
 func vscodeMCPPath() string {
+	appData := os.Getenv("APPDATA")
+	if appData != "" {
+		// Check Cline/Roo Code settings path first
+		clinePath := filepath.Join(appData, "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
+		if fileExists(clinePath) {
+			return clinePath
+		}
+		path := filepath.Join(appData, "Code", "User", "mcp.json")
+		if fileExists(path) {
+			return path
+		}
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
 	}
 	switch {
+	case fileExists(filepath.Join(home, "AppData", "Roaming", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")):
+		return filepath.Join(home, "AppData", "Roaming", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
+	case fileExists(filepath.Join(home, "Library", "Application Support", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")):
+		return filepath.Join(home, "Library", "Application Support", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
 	case fileExists(filepath.Join(home, "AppData", "Roaming", "Code", "User", "mcp.json")):
 		return filepath.Join(home, "AppData", "Roaming", "Code", "User", "mcp.json")
 	case fileExists(filepath.Join(home, "Library", "Application Support", "Code", "User", "mcp.json")):
 		return filepath.Join(home, "Library", "Application Support", "Code", "User", "mcp.json")
 	default:
+		clineLinux := filepath.Join(home, ".config", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
+		if fileExists(clineLinux) {
+			return clineLinux
+		}
 		return filepath.Join(home, ".config", "Code", "User", "mcp.json")
 	}
 }
 
 func claudeDesktopMCPPath() string {
+	appData := os.Getenv("APPDATA")
+	if appData != "" {
+		path := filepath.Join(appData, "Claude", "claude_desktop_config.json")
+		if fileExists(path) {
+			return path
+		}
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
