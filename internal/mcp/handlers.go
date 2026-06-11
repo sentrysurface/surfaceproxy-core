@@ -68,6 +68,21 @@ func (h *Handlers) OpenSession(url string) {
 
 // CloseSession closes the telemetry session and prints the ROI summary.
 func (h *Handlers) CloseSession() {
+	h.mu.Lock()
+	if h.wsConn != nil {
+		h.wsConn.Close()
+		h.wsConn = nil
+	}
+	targetID := h.createdTargetID
+	browserURL := h.cfg.TargetBrowserURL
+	h.createdTargetID = ""
+	h.mu.Unlock()
+
+	if targetID != "" && browserURL != "" {
+		log.Printf("[MCP] Closing isolated page target %s", targetID)
+		_ = closePage(browserURL, targetID)
+	}
+
 	if h.ledger == nil {
 		return
 	}
@@ -85,9 +100,26 @@ func (h *Handlers) connectBrowser() error {
 		return nil
 	}
 
-	conn, _, err := websocket.DefaultDialer.Dial(h.cfg.TargetBrowserURL, nil)
+	targetURL := h.cfg.TargetBrowserURL
+
+	// If connecting directly to a browser-level debugging endpoint, dynamically spin up a new tab
+	if strings.Contains(targetURL, "/devtools/browser/") {
+		targetID, newTargetURL, err := createNewPage(targetURL)
+		if err != nil {
+			return fmt.Errorf("failed to create isolated page target: %w", err)
+		}
+		log.Printf("[MCP] Created isolated page target %s", targetID)
+		h.createdTargetID = targetID
+		targetURL = newTargetURL
+	}
+
+	conn, _, err := websocket.DefaultDialer.Dial(targetURL, nil)
 	if err != nil {
-		return fmt.Errorf("failed to dial target browser at %s: %w", h.cfg.TargetBrowserURL, err)
+		if h.createdTargetID != "" {
+			_ = closePage(h.cfg.TargetBrowserURL, h.createdTargetID)
+			h.createdTargetID = ""
+		}
+		return fmt.Errorf("failed to dial target browser at %s: %w", targetURL, err)
 	}
 	h.wsConn = conn
 
