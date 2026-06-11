@@ -532,7 +532,12 @@ func cursorMCPPath() string {
 func vscodeMCPPath() string {
 	appData := os.Getenv("APPDATA")
 	if appData != "" {
-		// Check Cline/Roo Code settings path first
+		// Check Roo Code settings path first
+		rooPath := filepath.Join(appData, "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings", "roo_mcp_settings.json")
+		if fileExists(rooPath) {
+			return rooPath
+		}
+		// Check Cline settings path next
 		clinePath := filepath.Join(appData, "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
 		if fileExists(clinePath) {
 			return clinePath
@@ -547,8 +552,12 @@ func vscodeMCPPath() string {
 		return ""
 	}
 	switch {
+	case fileExists(filepath.Join(home, "AppData", "Roaming", "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings", "roo_mcp_settings.json")):
+		return filepath.Join(home, "AppData", "Roaming", "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings", "roo_mcp_settings.json")
 	case fileExists(filepath.Join(home, "AppData", "Roaming", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")):
 		return filepath.Join(home, "AppData", "Roaming", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
+	case fileExists(filepath.Join(home, "Library", "Application Support", "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings", "roo_mcp_settings.json")):
+		return filepath.Join(home, "Library", "Application Support", "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings", "roo_mcp_settings.json")
 	case fileExists(filepath.Join(home, "Library", "Application Support", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")):
 		return filepath.Join(home, "Library", "Application Support", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
 	case fileExists(filepath.Join(home, "AppData", "Roaming", "Code", "User", "mcp.json")):
@@ -556,6 +565,10 @@ func vscodeMCPPath() string {
 	case fileExists(filepath.Join(home, "Library", "Application Support", "Code", "User", "mcp.json")):
 		return filepath.Join(home, "Library", "Application Support", "Code", "User", "mcp.json")
 	default:
+		rooLinux := filepath.Join(home, ".config", "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings", "roo_mcp_settings.json")
+		if fileExists(rooLinux) {
+			return rooLinux
+		}
 		clineLinux := filepath.Join(home, ".config", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
 		if fileExists(clineLinux) {
 			return clineLinux
