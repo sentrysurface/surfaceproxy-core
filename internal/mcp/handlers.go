@@ -357,6 +357,112 @@ func ToolManifest() []Tool {
 				Properties: map[string]Property{},
 			},
 		},
+		{
+			Name:        "openBrowserPage",
+			Description: "Opens a new browser page/tab in the browser, optionally navigating to an initial URL.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"url": {Type: "string", Description: "The initial URL to load in the new browser page (optional)."},
+				},
+			},
+		},
+		{
+			Name:        "navigatePage",
+			Description: "Navigates the current browser page to a specified URL.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"url": {Type: "string", Description: "The URL to navigate the page to."},
+				},
+				Required: []string{"url"},
+			},
+		},
+		{
+			Name:        "readPage",
+			Description: "Read the current page's HTML structure, text content, and console logs/errors.",
+			InputSchema: InputSchema{
+				Type:       "object",
+				Properties: map[string]Property{},
+			},
+		},
+		{
+			Name:        "screenshotPage",
+			Description: "Capture a visual screenshot representation of the current page.",
+			InputSchema: InputSchema{
+				Type:       "object",
+				Properties: map[string]Property{},
+			},
+		},
+		{
+			Name:        "clickElement",
+			Description: "Click a DOM element identified by a CSS selector on the current page.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"selector": {Type: "string", Description: "A CSS selector string identifying the element to click."},
+				},
+				Required: []string{"selector"},
+			},
+		},
+		{
+			Name:        "hoverElement",
+			Description: "Hover over an element identified by a CSS selector on the current page.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"selector": {Type: "string", Description: "A CSS selector string identifying the element to hover over."},
+				},
+				Required: []string{"selector"},
+			},
+		},
+		{
+			Name:        "dragElement",
+			Description: "Drag an element to a target element identified by CSS selectors.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sourceSelector": {Type: "string", Description: "CSS selector identifying the element to drag."},
+					"targetSelector": {Type: "string", Description: "CSS selector identifying the target destination element."},
+				},
+				Required: []string{"sourceSelector", "targetSelector"},
+			},
+		},
+		{
+			Name:        "typeInPage",
+			Description: "Type text into a focused input element identified by a CSS selector.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"selector": {Type: "string", Description: "CSS selector of the input element."},
+					"text":     {Type: "string", Description: "The text to type into the input."},
+				},
+				Required: []string{"selector", "text"},
+			},
+		},
+		{
+			Name:        "handleDialog",
+			Description: "Accept or dismiss the current JavaScript dialog (alert, confirm, or prompt).",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"action":     {Type: "string", Description: "Action to perform: 'accept' or 'dismiss'."},
+					"promptText": {Type: "string", Description: "The text to enter for a prompt dialog (optional)."},
+				},
+				Required: []string{"action"},
+			},
+		},
+		{
+			Name:        "runPlaywrightCode",
+			Description: "Execute custom Playwright/JavaScript code block directly in the current page context.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"code": {Type: "string", Description: "The Playwright/JavaScript code to run in the browser page."},
+				},
+				Required: []string{"code"},
+			},
+		},
 	}
 }
 
@@ -467,6 +573,204 @@ func (h *Handlers) HandleScreenshot(_ json.RawMessage) ToolCallResult {
 		return ErrorContent("failed to decode screenshot: " + err.Error())
 	}
 	return TextContent("data:image/png;base64," + res.Data)
+}
+
+func (h *Handlers) HandleOpenBrowserPage(args json.RawMessage) ToolCallResult {
+	var p struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		// url is optional
+	}
+
+	targetURL := p.URL
+	if targetURL == "" {
+		targetURL = "about:blank"
+	}
+
+	allowed, reason, err := h.evaluator.EvaluateURL(targetURL)
+	if err != nil {
+		return ErrorContent("firewall evaluation error: " + err.Error())
+	}
+	if !allowed {
+		return ErrorContent(fmt.Sprintf("URL blocked by firewall: %s — Reason: %s", targetURL, reason))
+	}
+
+	if _, err := h.sendCDPCommand("Page.navigate", map[string]string{"url": targetURL}); err != nil {
+		return ErrorContent("navigation failed: " + err.Error())
+	}
+
+	_ = h.waitForPageLoad(20)
+
+	dom, err := h.getCurrentPrunedDOM(targetURL)
+	if err != nil {
+		return ErrorContent("DOM retrieval failed: " + err.Error())
+	}
+
+	return TextContent(dom)
+}
+
+func (h *Handlers) HandleNavigatePage(args json.RawMessage) ToolCallResult {
+	var p struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || p.URL == "" {
+		return ErrorContent("navigatePage requires a 'url' argument")
+	}
+
+	allowed, reason, err := h.evaluator.EvaluateURL(p.URL)
+	if err != nil {
+		return ErrorContent("firewall evaluation error: " + err.Error())
+	}
+	if !allowed {
+		return ErrorContent(fmt.Sprintf("URL blocked by firewall: %s — Reason: %s", p.URL, reason))
+	}
+
+	if _, err := h.sendCDPCommand("Page.navigate", map[string]string{"url": p.URL}); err != nil {
+		return ErrorContent("navigation failed: " + err.Error())
+	}
+
+	_ = h.waitForPageLoad(20)
+
+	dom, err := h.getCurrentPrunedDOM(p.URL)
+	if err != nil {
+		return ErrorContent("DOM retrieval failed: " + err.Error())
+	}
+
+	return TextContent(dom)
+}
+
+func (h *Handlers) HandleReadPage(args json.RawMessage) ToolCallResult {
+	return h.HandleGetDOM(args)
+}
+
+func (h *Handlers) HandleScreenshotPage(args json.RawMessage) ToolCallResult {
+	return h.HandleScreenshot(args)
+}
+
+func (h *Handlers) HandleClickElement(args json.RawMessage) ToolCallResult {
+	return h.HandleClick(args)
+}
+
+func (h *Handlers) HandleHoverElement(args json.RawMessage) ToolCallResult {
+	var p struct {
+		Selector string `json:"selector"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || p.Selector == "" {
+		return ErrorContent("hoverElement requires a 'selector' argument")
+	}
+
+	js := fmt.Sprintf(`(function(){var el=document.querySelector(%q);if(!el)throw new Error('element not found');var e1=new MouseEvent('mouseover',{bubbles:true,cancelable:true});var e2=new MouseEvent('mouseenter',{bubbles:true,cancelable:true});el.dispatchEvent(e1);el.dispatchEvent(e2);return true;})()`, p.Selector)
+	if _, err := h.sendCDPCommand("Runtime.evaluate", map[string]interface{}{
+		"expression":    js,
+		"returnByValue": true,
+	}); err != nil {
+		return ErrorContent("hoverElement failed: " + err.Error())
+	}
+	return TextContent("hovered: " + p.Selector)
+}
+
+func (h *Handlers) HandleDragElement(args json.RawMessage) ToolCallResult {
+	var p struct {
+		SourceSelector string `json:"sourceSelector"`
+		TargetSelector string `json:"targetSelector"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || p.SourceSelector == "" || p.TargetSelector == "" {
+		return ErrorContent("dragElement requires 'sourceSelector' and 'targetSelector' arguments")
+	}
+
+	js := fmt.Sprintf(`(function(){
+		var src = document.querySelector(%q);
+		var dst = document.querySelector(%q);
+		if(!src) throw new Error('source element not found');
+		if(!dst) throw new Error('target element not found');
+
+		function createEvent(type, dataTransfer) {
+			var event = new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dataTransfer });
+			return event;
+		}
+
+		var dt = new DataTransfer();
+		src.dispatchEvent(createEvent('dragstart', dt));
+		dst.dispatchEvent(createEvent('dragenter', dt));
+		dst.dispatchEvent(createEvent('dragover', dt));
+		dst.dispatchEvent(createEvent('drop', dt));
+		src.dispatchEvent(createEvent('dragend', dt));
+		return true;
+	})()`, p.SourceSelector, p.TargetSelector)
+
+	if _, err := h.sendCDPCommand("Runtime.evaluate", map[string]interface{}{
+		"expression":    js,
+		"returnByValue": true,
+	}); err != nil {
+		return ErrorContent("dragElement failed: " + err.Error())
+	}
+	return TextContent(fmt.Sprintf("dragged %s to %s", p.SourceSelector, p.TargetSelector))
+}
+
+func (h *Handlers) HandleTypeInPage(args json.RawMessage) ToolCallResult {
+	return h.HandleType(args)
+}
+
+func (h *Handlers) HandleHandleDialog(args json.RawMessage) ToolCallResult {
+	var p struct {
+		Action     string `json:"action"`
+		PromptText string `json:"promptText"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || p.Action == "" {
+		return ErrorContent("handleDialog requires an 'action' argument ('accept' or 'dismiss')")
+	}
+
+	accept := false
+	if strings.ToLower(p.Action) == "accept" {
+		accept = true
+	}
+
+	params := map[string]interface{}{
+		"accept": accept,
+	}
+	if p.PromptText != "" {
+		params["promptText"] = p.PromptText
+	}
+
+	if _, err := h.sendCDPCommand("Page.handleJavaScriptDialog", params); err != nil {
+		return ErrorContent("handleJavaScriptDialog failed: " + err.Error())
+	}
+
+	return TextContent(fmt.Sprintf("dialog handled: action=%s, promptText=%q", p.Action, p.PromptText))
+}
+
+func (h *Handlers) HandleRunPlaywrightCode(args json.RawMessage) ToolCallResult {
+	var p struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil || p.Code == "" {
+		return ErrorContent("runPlaywrightCode requires a 'code' argument")
+	}
+
+	js := fmt.Sprintf(`(function(){ %s })()`, p.Code)
+
+	result, err := h.sendCDPCommand("Runtime.evaluate", map[string]interface{}{
+		"expression":    js,
+		"returnByValue": true,
+	})
+	if err != nil {
+		return ErrorContent("runPlaywrightCode evaluation failed: " + err.Error())
+	}
+
+	var evalRes struct {
+		Result struct {
+			Value interface{} `json:"value"`
+		} `json:"result"`
+	}
+	var output string
+	if err := json.Unmarshal(result, &evalRes); err == nil {
+		output = fmt.Sprintf("%v", evalRes.Result.Value)
+	} else {
+		output = string(result)
+	}
+
+	return TextContent("executed code in browser context: " + output)
 }
 
 func (h *Handlers) getCurrentPrunedDOM(pageKey string) (string, error) {

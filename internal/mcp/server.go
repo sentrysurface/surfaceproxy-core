@@ -260,6 +260,26 @@ func (s *Server) handleToolsCall(req Request) *Response {
 		callResult = s.handlers.HandleType(params.Arguments)
 	case "screenshot":
 		callResult = s.handlers.HandleScreenshot(params.Arguments)
+	case "openBrowserPage":
+		callResult = s.handlers.HandleOpenBrowserPage(params.Arguments)
+	case "navigatePage":
+		callResult = s.handlers.HandleNavigatePage(params.Arguments)
+	case "readPage":
+		callResult = s.handlers.HandleReadPage(params.Arguments)
+	case "screenshotPage":
+		callResult = s.handlers.HandleScreenshotPage(params.Arguments)
+	case "clickElement":
+		callResult = s.handlers.HandleClickElement(params.Arguments)
+	case "hoverElement":
+		callResult = s.handlers.HandleHoverElement(params.Arguments)
+	case "dragElement":
+		callResult = s.handlers.HandleDragElement(params.Arguments)
+	case "typeInPage":
+		callResult = s.handlers.HandleTypeInPage(params.Arguments)
+	case "handleDialog":
+		callResult = s.handlers.HandleHandleDialog(params.Arguments)
+	case "runPlaywrightCode":
+		callResult = s.handlers.HandleRunPlaywrightCode(params.Arguments)
 	default:
 		callResult = ErrorContent("unknown tool: " + params.Name)
 	}
