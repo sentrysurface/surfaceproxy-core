@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,17 +22,17 @@ import (
 // Handlers implements all MCP tool call handlers and manages the connection
 // to the headless browser via CDP WebSocket.
 type Handlers struct {
-	cfg        *config.Config
-	evaluator  firewall.Evaluator
-	pruner     *pruning.Pruner
-	diffEngine *pruning.DiffEngine
-	ledger     *telemetry.Ledger
-	mu         sync.Mutex
-	wsConn     *websocket.Conn
-	nextID     int64
-	pending    map[int64]chan []byte
-	// sessionID for the current MCP session (used for telemetry)
-	sessionID  string
+	cfg             *config.Config
+	evaluator       firewall.Evaluator
+	pruner          *pruning.Pruner
+	diffEngine      *pruning.DiffEngine
+	ledger          *telemetry.Ledger
+	mu              sync.Mutex
+	wsConn          *websocket.Conn
+	nextID          int64
+	pending         map[int64]chan []byte
+	sessionID       string
+	createdTargetID string // Keeps track of any dynamically created isolated Chrome tab
 }
 
 func NewHandlers(cfg *config.Config, ev firewall.Evaluator, pr *pruning.Pruner, ledger *telemetry.Ledger) *Handlers {
