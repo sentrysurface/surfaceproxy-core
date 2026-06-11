@@ -2,15 +2,20 @@ package cdp
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sentrysurface/surface-proxy/internal/config"
 	"github.com/sentrysurface/surface-proxy/internal/firewall"
 	"github.com/sentrysurface/surface-proxy/internal/pruning"
+	"github.com/sentrysurface/surface-proxy/internal/telemetry"
 	"github.com/sentrysurface/surface-proxy/internal/util"
 )
 
@@ -27,17 +32,19 @@ type Proxy struct {
 	evaluator   firewall.Evaluator
 	pruner      *pruning.Pruner
 	diffEngine  *pruning.DiffEngine
+	ledger      *telemetry.Ledger
 	browserURLs BrowserURLProvider // nil when mode = "external"
 	upgrader    websocket.Upgrader
 	sessions    sync.Map // sessionID -> *Session
 }
 
-func NewProxy(cfg *config.Config, ev firewall.Evaluator, pr *pruning.Pruner, bup BrowserURLProvider) *Proxy {
+func NewProxy(cfg *config.Config, ev firewall.Evaluator, pr *pruning.Pruner, ledger *telemetry.Ledger, bup BrowserURLProvider) *Proxy {
 	return &Proxy{
 		cfg:        cfg,
 		evaluator:  ev,
 		pruner:     pr,
 		diffEngine: pruning.NewDiffEngine(),
+		ledger:     ledger,
 		browserURLs: bup,
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  4096,
