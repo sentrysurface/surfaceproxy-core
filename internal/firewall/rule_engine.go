@@ -1,7 +1,11 @@
 package firewall
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -55,6 +59,15 @@ func (re *RuleEngine) UpdateRules(cfg config.FirewallConfig) error {
 		newAllow = append(newAllow, r)
 	}
 
+	// Dynamic Sync: Load and merge VS Code auto-approved URL patterns
+	vscRules := LoadVSCodeApprovedRules()
+	for _, raw := range vscRules {
+		r, err := regexp.Compile(raw)
+		if err == nil {
+			newAllow = append(newAllow, r)
+		}
+	}
+
 	var newBlock []*regexp.Regexp
 	for _, raw := range cfg.Blocklist {
 		if strings.HasPrefix(raw, "_disabled_:") {
@@ -76,6 +89,114 @@ func (re *RuleEngine) UpdateRules(cfg config.FirewallConfig) error {
 	re.rawMu.Unlock()
 
 	return nil
+}
+
+func getVSCodeUserSettingsPath() string {
+	var baseDir string
+	switch runtime.GOOS {
+	case "windows":
+		baseDir = os.Getenv("APPDATA")
+		if baseDir == "" {
+			return ""
+		}
+		return filepath.Join(baseDir, "Code", "User", "settings.json")
+	case "darwin":
+		home := os.Getenv("HOME")
+		if home == "" {
+			return ""
+		}
+		return filepath.Join(home, "Library", "Application Support", "Code", "User", "settings.json")
+	default: // Linux and others
+		home := os.Getenv("HOME")
+		if home == "" {
+			return ""
+		}
+		return filepath.Join(home, ".config", "Code", "User", "settings.json")
+	}
+}
+
+func cleanJSONC(data []byte) []byte {
+	// Strip block comments /* ... */
+	blockComments := regexp.MustCompile(`(?s)/\*.*?\*/`)
+	data = blockComments.ReplaceAll(data, nil)
+
+	// Strip line comments // ...
+	lineComments := regexp.MustCompile(`//.*`)
+	data = lineComments.ReplaceAll(data, nil)
+
+	// Strip trailing commas before closing braces/brackets
+	trailingCommas := regexp.MustCompile(`,(\s*[}\]])`)
+	data = trailingCommas.ReplaceAll(data, []byte("$1"))
+
+	return data
+}
+
+func convertPatternToRegex(pattern string) string {
+	var sb strings.Builder
+	sb.WriteString("^")
+
+	hasScheme := strings.HasPrefix(pattern, "http://") || strings.HasPrefix(pattern, "https://")
+	if !hasScheme {
+		sb.WriteString("https?://")
+	}
+
+	for _, r := range pattern {
+		switch r {
+		case '*':
+			sb.WriteString(".*")
+		case '.', '?', '+', '(', ')', '[', ']', '{', '}', '^', '$', '|', '\\':
+			sb.WriteRune('\\')
+			sb.WriteRune(r)
+		default:
+			sb.WriteRune(r)
+		}
+	}
+
+	if !strings.HasSuffix(pattern, "*") {
+		sb.WriteString("(/.*)?")
+	}
+	sb.WriteString("$")
+	return sb.String()
+}
+
+func LoadVSCodeApprovedRules() []string {
+	var rules []string
+
+	parseSettingsFile := func(path string) {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return
+		}
+
+		cleaned := cleanJSONC(data)
+		var settings struct {
+			ChatToolsURLsAutoApprove map[string]bool `json:"chat.tools.urls.autoApprove"`
+		}
+
+		if err := json.Unmarshal(cleaned, &settings); err != nil {
+			return
+		}
+
+		for urlPattern, approved := range settings.ChatToolsURLsAutoApprove {
+			if !approved {
+				continue
+			}
+			regexStr := convertPatternToRegex(urlPattern)
+			rules = append(rules, regexStr)
+		}
+	}
+
+	// 1. Read global settings
+	globalPath := getVSCodeUserSettingsPath()
+	if globalPath != "" {
+		parseSettingsFile(globalPath)
+	}
+
+	// 2. Read workspace local settings (.vscode/settings.json)
+	localPath := filepath.Join(".vscode", "settings.json")
+	parseSettingsFile(localPath)
+
+	return rules
 }
 
 // GetRules returns the current raw pattern strings for allowlist and blocklist.
