@@ -57,9 +57,9 @@ func NewApp(configPath string, mode Mode) (*App, error) {
 		conn, errDial := net.DialTimeout("tcp", localAddr, 200*time.Millisecond)
 		if errDial == nil {
 			conn.Close()
-			log.Printf("[APP] Detected running daemon at %s — reusing its browser session via CDP proxy", localAddr)
+			log.Printf("[APP] Detected running daemon at %s — reusing its browser session via CDP proxy with isolated tab", localAddr)
 			cfg.Browser.Mode = "external"
-			cfg.TargetBrowserURL = "ws://" + localAddr
+			cfg.TargetBrowserURL = "ws://" + localAddr + "/v1/session?new_page=true"
 		}
 	}
 
@@ -86,7 +86,7 @@ func NewApp(configPath string, mode Mode) (*App, error) {
 		if launcher != nil {
 			bup = launcher
 		}
-		proxy = cdp.NewProxy(cfg, fw, pr, bup)
+		proxy = cdp.NewProxy(cfg, fw, pr, ledger, bup)
 	}
 
 	mcpServer := mcp.NewServer(cfg, mcpHandlers)

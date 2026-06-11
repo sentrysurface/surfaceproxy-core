@@ -105,24 +105,60 @@ func (p *Proxy) handleV1Session(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	baseBrowserURL := targetURL
+	var createdTargetID string
+	if sc.NewPage {
+		targetID, newTargetURL, err := createNewPage(baseBrowserURL)
+		if err != nil {
+			log.Printf("[PROXY] Failed to create new page target for session: %v", err)
+			http.Error(w, "failed to create isolated page target: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		log.Printf("[PROXY] Created isolated page target %s for session", targetID)
+		createdTargetID = targetID
+		targetURL = newTargetURL
+	}
+
 	conn, err := p.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("[PROXY] /v1/session upgrade failed: %v", err)
+		if createdTargetID != "" {
+			_ = closePage(baseBrowserURL, createdTargetID)
+		}
 		return
 	}
 
 	sessionID := util.GenerateID()
 	log.Printf("[PROXY] /v1/session opened: %s → %s", sessionID, targetURL)
 
-	session, err := NewSession(sessionID, conn, targetURL, sc.FirewallOverride, p.pruner, p.diffEngine)
+	if p.ledger != nil {
+		p.ledger.OpenSession(sessionID, targetURL)
+	}
+
+	session, err := NewSession(sessionID, conn, targetURL, sc.FirewallOverride, p.pruner, p.diffEngine, p.ledger)
 	if err != nil {
 		log.Printf("[PROXY] Failed to bootstrap v1 session %s: %v", sessionID, err)
 		conn.Close()
+		if p.ledger != nil {
+			p.ledger.CloseSession(sessionID)
+		}
+		if createdTargetID != "" {
+			_ = closePage(baseBrowserURL, createdTargetID)
+		}
 		return
 	}
 
 	p.sessions.Store(sessionID, session)
-	defer p.sessions.Delete(sessionID)
+	defer func() {
+		p.sessions.Delete(sessionID)
+		if p.ledger != nil {
+			p.ledger.CloseSession(sessionID)
+		}
+		if createdTargetID != "" {
+			log.Printf("[PROXY] Closing isolated page target %s", createdTargetID)
+			_ = closePage(baseBrowserURL, createdTargetID)
+		}
+	}()
 	session.Start(r.Context())
 }
 
@@ -142,15 +178,27 @@ func (p *Proxy) handleBrowserConnection(w http.ResponseWriter, r *http.Request) 
 	sessionID := util.GenerateID()
 	log.Printf("[PROXY] Scaffolding new session: %s", sessionID)
 
-	session, err := NewSession(sessionID, conn, targetURL, p.evaluator, p.pruner, p.diffEngine)
+	if p.ledger != nil {
+		p.ledger.OpenSession(sessionID, targetURL)
+	}
+
+	session, err := NewSession(sessionID, conn, targetURL, p.evaluator, p.pruner, p.diffEngine, p.ledger)
 	if err != nil {
 		log.Printf("[PROXY] Failed to bootstrap session: %v", err)
 		conn.Close()
+		if p.ledger != nil {
+			p.ledger.CloseSession(sessionID)
+		}
 		return
 	}
 
 	p.sessions.Store(sessionID, session)
-	defer p.sessions.Delete(sessionID)
+	defer func() {
+		p.sessions.Delete(sessionID)
+		if p.ledger != nil {
+			p.ledger.CloseSession(sessionID)
+		}
+	}()
 	session.Start(r.Context())
 }
 
@@ -177,15 +225,27 @@ func (p *Proxy) handlePageConnection(w http.ResponseWriter, r *http.Request) {
 	sessionID := util.GenerateID()
 	log.Printf("[PROXY] Scaffolding new page session: %s for path %s", sessionID, path)
 
-	session, err := NewSession(sessionID, conn, targetURL, p.evaluator, p.pruner, p.diffEngine)
+	if p.ledger != nil {
+		p.ledger.OpenSession(sessionID, targetURL)
+	}
+
+	session, err := NewSession(sessionID, conn, targetURL, p.evaluator, p.pruner, p.diffEngine, p.ledger)
 	if err != nil {
 		log.Printf("[PROXY] Failed to bootstrap page session: %v", err)
 		conn.Close()
+		if p.ledger != nil {
+			p.ledger.CloseSession(sessionID)
+		}
 		return
 	}
 
 	p.sessions.Store(sessionID, session)
-	defer p.sessions.Delete(sessionID)
+	defer func() {
+		p.sessions.Delete(sessionID)
+		if p.ledger != nil {
+			p.ledger.CloseSession(sessionID)
+		}
+	}()
 	session.Start(r.Context())
 }
 
@@ -198,4 +258,66 @@ func (p *Proxy) resolvedBrowserURL() string {
 		}
 	}
 	return p.cfg.TargetBrowserURL
+}
+
+// ── Target Control Helpers ───────────────────────────────────────────────────
+
+func wsToHTTP(wsURL string) string {
+	if wsURL == "" {
+		return ""
+	}
+	u, err := url.Parse(wsURL)
+	if err != nil {
+		return ""
+	}
+	u.Scheme = "http"
+	if strings.HasPrefix(wsURL, "wss://") {
+		u.Scheme = "https"
+	}
+	u.Path = ""
+	u.RawQuery = ""
+	return u.String()
+}
+
+func createNewPage(browserWSURL string) (string, string, error) {
+	httpAddr := wsToHTTP(browserWSURL)
+	if httpAddr == "" {
+		return "", "", fmt.Errorf("invalid browser WS URL: %s", browserWSURL)
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(httpAddr + "/json/new")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create new page target: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("create new page target returned status %d", resp.StatusCode)
+	}
+
+	var target struct {
+		ID                   string `json:"id"`
+		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&target); err != nil {
+		return "", "", fmt.Errorf("failed to decode new page target response: %w", err)
+	}
+
+	return target.ID, target.WebSocketDebuggerURL, nil
+}
+
+func closePage(browserWSURL, targetID string) error {
+	httpAddr := wsToHTTP(browserWSURL)
+	if httpAddr == "" || targetID == "" {
+		return nil
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(httpAddr + "/json/close/" + targetID)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
 }
