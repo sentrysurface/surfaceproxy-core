@@ -15,6 +15,8 @@ type SessionConfig struct {
 	FirewallOverride firewall.Evaluator
 	// BrowserWSURL, if non-empty, overrides the target browser WebSocket endpoint for this session.
 	BrowserWSURL string
+	// NewPage, if true, requests that the proxy spin up a dynamically isolated tab
+	NewPage bool
 }
 
 // ParseSessionConfig reads URL query parameters from a /v1/session connection request
@@ -25,9 +27,11 @@ type SessionConfig struct {
 //	allowlist=*.gov.au,*.example.com   — comma-separated URL glob patterns added to allowlist
 //	blocklist=*.ads.com                — comma-separated URL glob patterns added to blocklist
 //	target=ws://localhost:9223         — override the target browser WS endpoint
+//	new_page=true                      — request a dynamically isolated tab session
 func ParseSessionConfig(q url.Values, globalCfg *config.Config, globalEvaluator firewall.Evaluator) (*SessionConfig, error) {
 	sc := &SessionConfig{
 		BrowserWSURL: globalCfg.TargetBrowserURL,
+		NewPage:      q.Get("new_page") == "true",
 	}
 
 	// Check for explicit target browser override
