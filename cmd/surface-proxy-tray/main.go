@@ -89,9 +89,10 @@ func relaunchDetached() error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		// "start /B" launches a detached background process on Windows
-		cmdArgs := append([]string{"/c", "start", "/B", exe}, args...)
-		cmd = exec.Command("cmd", cmdArgs...)
+		cmd = exec.Command(exe, args...)
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			CreationFlags: 0x00000008, // DETACHED_PROCESS
+		}
 	default:
 		// On macOS / Linux, set process group to detach
 		cmd = exec.Command(exe, args...)
