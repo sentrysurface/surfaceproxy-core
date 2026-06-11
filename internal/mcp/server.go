@@ -52,6 +52,7 @@ func (s *Server) startStdio(ctx context.Context) error {
 	log.Println("[MCP] Starting stdio JSON-RPC server (MCP 2024-11-05)")
 	// Redirect log to stderr — stdout is exclusively for JSON-RPC responses
 	log.SetOutput(os.Stderr)
+	defer s.handlers.CloseSession()
 
 	reader := bufio.NewReader(os.Stdin)
 	errChan := make(chan error, 1)
@@ -93,6 +94,7 @@ func (s *Server) startWebSocket(ctx context.Context) error {
 		Addr:    s.cfg.MCPListenAddr,
 		Handler: mux,
 	}
+	defer s.handlers.CloseSession()
 
 	util.SafeGo(func() {
 		<-ctx.Done()
