@@ -565,26 +565,53 @@ func vscodeMCPPath() string {
 }
 
 func claudeDesktopMCPPath() string {
+	// 1. Check Windows MSIX package path first (Local AppData packages)
+	localAppData := os.Getenv("LOCALAPPDATA")
+	if localAppData != "" {
+		msixPath := filepath.Join(localAppData, "Packages", "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude", "claude_desktop_config.json")
+		if fileExists(msixPath) || fileExists(filepath.Dir(msixPath)) {
+			return msixPath
+		}
+	}
+
 	appData := os.Getenv("APPDATA")
 	if appData != "" {
 		path := filepath.Join(appData, "Claude", "claude_desktop_config.json")
-		if fileExists(path) {
+		if fileExists(path) || fileExists(filepath.Dir(path)) {
 			return path
 		}
 	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
 	}
+
+	// 2. Check alternative Windows Store MSIX path with user home
+	msixHomePath := filepath.Join(home, "AppData", "Local", "Packages", "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude", "claude_desktop_config.json")
+	if fileExists(msixHomePath) || fileExists(filepath.Dir(msixHomePath)) {
+		return msixHomePath
+	}
+
 	switch {
 	case fileExists(filepath.Join(home, "AppData", "Roaming", "Claude", "claude_desktop_config.json")):
 		return filepath.Join(home, "AppData", "Roaming", "Claude", "claude_desktop_config.json")
 	case fileExists(filepath.Join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json")):
 		return filepath.Join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json")
 	default:
+		// Fallback to standard User Profile path if Roaming folder exists
+		roamingPath := filepath.Join(home, "AppData", "Roaming", "Claude", "claude_desktop_config.json")
+		if fileExists(filepath.Join(home, "AppData", "Roaming")) {
+			return roamingPath
+		}
+		// Mac / Linux defaults
+		if fileExists(filepath.Join(home, "Library", "Application Support")) {
+			return filepath.Join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json")
+		}
 		return filepath.Join(home, ".config", "Claude", "claude_desktop_config.json")
 	}
 }
+
 
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
