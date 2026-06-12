@@ -52,7 +52,7 @@ func TestRuleEngineDB(t *testing.T) {
 	}
 
 	// Test blocklist domain walk
-	allowed, reason, err = re.EvaluateURL("https://sub.doubleclick.net/ad.gif")
+	allowed, _, err = re.EvaluateURL("https://sub.doubleclick.net/ad.gif")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestRuleEngineDB(t *testing.T) {
 	}
 
 	// Test not in allowlist
-	allowed, reason, err = re.EvaluateURL("https://malicious.com")
+	allowed, _, err = re.EvaluateURL("https://malicious.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestRuleEngineDB(t *testing.T) {
 		t.Fatalf("failed to update rule: %v", err)
 	}
 
-	allowed, reason, err = re.EvaluateURL("https://malicious.com")
+	allowed, _, err = re.EvaluateURL("https://malicious.com")
 	if err != nil {
 		t.Fatal(err)
 	}
