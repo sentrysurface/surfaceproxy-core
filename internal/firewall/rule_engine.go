@@ -392,38 +392,30 @@ func cleanDomainPattern(pattern string) string {
 		return ""
 	}
 
-	if strings.HasPrefix(pattern, "^") || strings.Contains(pattern, "$") || strings.Contains(pattern, "(") {
-		clean := pattern
-		clean = strings.TrimPrefix(clean, "^")
-		clean = strings.TrimSuffix(clean, "$")
-		clean = strings.TrimPrefix(clean, "https?://")
+	clean := pattern
+	clean = strings.TrimPrefix(clean, "^")
+	clean = strings.TrimSuffix(clean, "$")
+	clean = strings.TrimPrefix(clean, "https?://")
+	clean = strings.TrimPrefix(clean, "http://")
+	clean = strings.TrimPrefix(clean, "https://")
 
-		re := regexp.MustCompile(`(?:\(?\[a-zA-Z0-9-\]\+\\\.?\)?\*?)*([a-zA-Z0-9-]+)\.([a-zA-Z0-9.-]+)`)
-		matches := re.FindStringSubmatch(clean)
-		if len(matches) >= 3 {
-			domain := matches[1] + "." + matches[2]
-			domain = strings.ReplaceAll(domain, `\.`, ".")
-			domain = strings.ReplaceAll(domain, `(/.*)?`, "")
-			domain = strings.TrimSuffix(domain, ".")
-			return strings.ToLower(domain)
-		}
-
-		clean = strings.ReplaceAll(clean, `\.`, ".")
-		clean = strings.ReplaceAll(clean, `\`, "")
-		clean = strings.Split(clean, "/")[0]
-		clean = strings.Trim(clean, ".*")
-		return strings.ToLower(clean)
+	if strings.Contains(clean, ")*") || strings.Contains(clean, ")+") {
+		subdomainRegex := regexp.MustCompile(`^.*?\)\*?`)
+		clean = subdomainRegex.ReplaceAllString(clean, "")
 	}
 
-	if idx := strings.Index(pattern, "://"); idx != -1 {
-		pattern = pattern[idx+3:]
-	}
+	pathRegex := regexp.MustCompile(`[\(/].*$`)
+	clean = pathRegex.ReplaceAllString(clean, "")
 
-	pattern = strings.Split(pattern, "/")[0]
-	pattern = strings.TrimPrefix(pattern, "*")
-	pattern = strings.TrimPrefix(pattern, ".")
+	clean = strings.ReplaceAll(clean, `\.`, ".")
+	clean = strings.ReplaceAll(clean, `\`, "")
 
-	return strings.ToLower(pattern)
+	clean = strings.TrimSpace(clean)
+	clean = strings.TrimPrefix(clean, "*")
+	clean = strings.TrimPrefix(clean, ".")
+	clean = strings.Trim(clean, ".")
+
+	return strings.ToLower(clean)
 }
 
 func LoadVSCodeApprovedRules() []string {

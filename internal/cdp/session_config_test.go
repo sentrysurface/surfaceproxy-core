@@ -12,12 +12,12 @@ func TestParseSessionConfig(t *testing.T) {
 	globalCfg := &config.Config{
 		TargetBrowserURL: "ws://localhost:9222/devtools/browser/abc",
 		Firewall: config.FirewallConfig{
-			Allowlist: []string{`^https?://.*\.google\.com(/.*)?$`},
-			Blocklist: []string{`^https?://.*\.ads\.com(/.*)?$`},
+			Allowlist: []string{"google.com"},
+			Blocklist: []string{"ads.com"},
 		},
 	}
 
-	globalEvaluator, err := firewall.NewRuleEngine(globalCfg.Firewall)
+	globalEvaluator, err := firewall.NewRuleEngine("", globalCfg.Firewall)
 	if err != nil {
 		t.Fatalf("Failed to create global evaluator: %v", err)
 	}

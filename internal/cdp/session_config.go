@@ -40,34 +40,41 @@ func ParseSessionConfig(q url.Values, globalCfg *config.Config, globalEvaluator 
 	}
 
 	// Build per-session firewall config by merging global rules with session overrides
-	sessionFirewallCfg := config.FirewallConfig{
-		Allowlist: append([]string{}, globalCfg.Firewall.Allowlist...),
-		Blocklist: append([]string{}, globalCfg.Firewall.Blocklist...),
+	var globalAllow, globalBlock []string
+	if re, ok := globalEvaluator.(*firewall.RuleEngine); ok {
+		globalAllow, globalBlock = re.GetRules()
 	}
 
+	sessionFirewallCfg := config.FirewallConfig{}
+
+	cleanParamDomains := func(rawVal string) []string {
+		var domains []string
+		for _, pattern := range strings.Split(rawVal, ",") {
+			pattern = strings.TrimSpace(pattern)
+			if pattern != "" {
+				pattern = strings.TrimPrefix(pattern, "*")
+				pattern = strings.TrimPrefix(pattern, ".")
+				if pattern != "" {
+					domains = append(domains, pattern)
+				}
+			}
+		}
+		return domains
+	}
+
+	sessionFirewallCfg.Allowlist = append(sessionFirewallCfg.Allowlist, globalAllow...)
 	if rawAllow := q.Get("allowlist"); rawAllow != "" {
-		for _, pattern := range strings.Split(rawAllow, ",") {
-			pattern = strings.TrimSpace(pattern)
-			if pattern != "" {
-				// Convert glob-style *.example.com to a regex
-				sessionFirewallCfg.Allowlist = append(sessionFirewallCfg.Allowlist, globToRegex(pattern))
-			}
-		}
+		sessionFirewallCfg.Allowlist = append(sessionFirewallCfg.Allowlist, cleanParamDomains(rawAllow)...)
 	}
 
+	sessionFirewallCfg.Blocklist = append(sessionFirewallCfg.Blocklist, globalBlock...)
 	if rawBlock := q.Get("blocklist"); rawBlock != "" {
-		for _, pattern := range strings.Split(rawBlock, ",") {
-			pattern = strings.TrimSpace(pattern)
-			if pattern != "" {
-				sessionFirewallCfg.Blocklist = append(sessionFirewallCfg.Blocklist, globToRegex(pattern))
-			}
-		}
+		sessionFirewallCfg.Blocklist = append(sessionFirewallCfg.Blocklist, cleanParamDomains(rawBlock)...)
 	}
 
-	// If any session-level overrides were provided, create a dedicated evaluator for this session
 	hasOverrides := q.Get("allowlist") != "" || q.Get("blocklist") != ""
 	if hasOverrides {
-		re, err := firewall.NewRuleEngine(sessionFirewallCfg)
+		re, err := firewall.NewRuleEngine("", sessionFirewallCfg)
 		if err != nil {
 			return nil, err
 		}
@@ -77,28 +84,4 @@ func ParseSessionConfig(q url.Values, globalCfg *config.Config, globalEvaluator 
 	}
 
 	return sc, nil
-}
-
-// globToRegex converts a simple glob pattern (*.example.com) to a regex string.
-// Supports only * as a wildcard. More complex patterns should be passed as raw regex in config.
-func globToRegex(glob string) string {
-	// Escape regex metacharacters except *
-	replacer := strings.NewReplacer(
-		`.`, `\.`,
-		`?`, `.`,
-		`[`, `\[`,
-		`]`, `\]`,
-		`(`, `\(`,
-		`)`, `\)`,
-		`^`, `\^`,
-		`$`, `\$`,
-		`+`, `\+`,
-		`{`, `\{`,
-		`}`, `\}`,
-		`|`, `\|`,
-	)
-	escaped := replacer.Replace(glob)
-	// Replace * with .* for wildcard matching
-	regex := strings.ReplaceAll(escaped, "*", ".*")
-	return `^https?://` + regex + `(/.*)?$`
 }
