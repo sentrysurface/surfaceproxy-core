@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"runtime"
 	"syscall"
 
 	"github.com/sentrysurface/surface-proxy/internal/app"
@@ -86,18 +85,8 @@ func relaunchDetached() error {
 		args = append(args, a)
 	}
 
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command(exe, args...)
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			CreationFlags: 0x00000008, // DETACHED_PROCESS
-		}
-	default:
-		// On macOS / Linux, set process group to detach
-		cmd = exec.Command(exe, args...)
-		cmd.SysProcAttr = newSysProcAttr()
-	}
+	cmd := exec.Command(exe, args...)
+	cmd.SysProcAttr = newSysProcAttr()
 
 	cmd.Stdin = nil
 	cmd.Stdout = nil
