@@ -579,9 +579,7 @@ func (h *Handlers) HandleOpenBrowserPage(args json.RawMessage) ToolCallResult {
 	var p struct {
 		URL string `json:"url"`
 	}
-	if err := json.Unmarshal(args, &p); err != nil {
-		// url is optional
-	}
+	_ = json.Unmarshal(args, &p) // url is optional
 
 	targetURL := p.URL
 	if targetURL == "" {
