@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -63,7 +64,16 @@ func NewApp(configPath string, mode Mode) (*App, error) {
 		}
 	}
 
-	fw, err := firewall.NewRuleEngine(cfg.Firewall)
+	resolvedPath := loader.Path()
+	var dbPath string
+	configDir, errDir := os.UserConfigDir()
+	if errDir == nil {
+		dbPath = filepath.Join(configDir, "surface-proxy", "firewall.db")
+	} else {
+		dbPath = filepath.Join(filepath.Dir(resolvedPath), "firewall.db")
+	}
+
+	fw, err := firewall.NewRuleEngine(dbPath, cfg.Firewall)
 	if err != nil {
 		loader.Close()
 		return nil, err
@@ -182,6 +192,11 @@ func (a *App) Close() {
 
 	if a.launcher != nil {
 		a.launcher.Stop()
+	}
+	if a.firewall != nil {
+		if errClose := a.firewall.Close(); errClose != nil {
+			log.Printf("[APP] Error closing firewall database: %v", errClose)
+		}
 	}
 	if a.loader != nil {
 		a.loader.Close()

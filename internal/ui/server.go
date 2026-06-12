@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -221,7 +220,54 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 // ── /api/firewall/allowlist & blocklist ──────────────────────────────────────
 
-type ruleIte	case http.MethodPost:
+type ruleItem struct {
+	Pattern string `json:"pattern"`
+	Enabled bool   `json:"enabled"`
+}
+
+type ruleRequest struct {
+	Pattern string `json:"pattern"`
+	Enabled *bool  `json:"enabled,omitempty"`
+}
+
+type updateRuleRequest struct {
+	OldPattern string `json:"old_pattern"`
+	OldEnabled bool   `json:"old_enabled"`
+	NewPattern string `json:"new_pattern"`
+	NewEnabled bool   `json:"new_enabled"`
+}
+
+func (s *Server) handleAllowlist(w http.ResponseWriter, r *http.Request) {
+	s.handleRuleEndpoint(w, r, true)
+}
+
+func (s *Server) handleBlocklist(w http.ResponseWriter, r *http.Request) {
+	s.handleRuleEndpoint(w, r, false)
+}
+
+func (s *Server) handleRuleEndpoint(w http.ResponseWriter, r *http.Request, isAllow bool) {
+	w.Header().Set("Content-Type", "application/json")
+	al, bl := s.firewall.GetRules()
+
+	switch r.Method {
+	case http.MethodGet:
+		items := make([]ruleItem, 0, len(al))
+		rules := al
+		if !isAllow {
+			rules = bl
+		}
+		for _, raw := range rules {
+			enabled := true
+			pattern := raw
+			if strings.HasPrefix(raw, "_disabled_:") {
+				enabled = false
+				pattern = strings.TrimPrefix(raw, "_disabled_:")
+			}
+			items = append(items, ruleItem{Pattern: pattern, Enabled: enabled})
+		}
+		_ = json.NewEncoder(w).Encode(items)
+
+	case http.MethodPost:
 		var req ruleRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Pattern == "" {
 			http.Error(w, `{"error":"invalid pattern"}`, http.StatusBadRequest)
@@ -309,39 +355,6 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	if len(newRules) == 0 {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"count": 0, "status": "no rules found in file"})
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"count":  len(newRules),
-		"status": fmt.Sprintf("successfully imported %d rules", len(newRules)),
-	})
-}|| strings.HasPrefix(line, "//") {
-			continue
-		}
-		if _, errCompile := regexp.Compile(line); errCompile != nil {
-			http.Error(w, fmt.Sprintf(`{"error":"invalid regex pattern %q: %s"}`, line, errCompile.Error()), http.StatusBadRequest)
-			return
-		}
-		newRules = append(newRules, line)
-	}
-	if errScan := scanner.Err(); errScan != nil {
-		http.Error(w, `{"error":"failed to read file"}`, http.StatusInternalServerError)
-		return
-	}
-	if len(newRules) == 0 {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"count": 0, "status": "no rules found in file"})
-		return
-	}
-	cfg := s.loader.GetConfig()
-	if ruleType == "allowlist" {
-		cfg.Firewall.Allowlist = append(cfg.Firewall.Allowlist, newRules...)
-	} else {
-		cfg.Firewall.Blocklist = append(cfg.Firewall.Blocklist, newRules...)
-	}
-	if errApply := s.applyAndPersist(cfg); errApply != nil {
-		http.Error(w, `{"error":"failed to apply and save rules"}`, http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
