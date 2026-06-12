@@ -2,49 +2,105 @@ package firewall
 
 import (
 	"encoding/json"
-	"regexp"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/sentrysurface/surface-proxy/internal/config"
 )
 
-func TestRuleEngine(t *testing.T) {
+func TestRuleEngineDB(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "firewall-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "firewall.db")
 	cfg := config.FirewallConfig{
 		Allowlist: []string{
-			"^https?://([a-zA-Z0-9-]+\\.)*github\\.com(/.*)?$",
+			"github.com",
+			"google.com",
 		},
 		Blocklist: []string{
-			"^https?://([a-zA-Z0-9-]+\\.)*adserver\\.com(/.*)?$",
+			"doubleclick.net",
 		},
 	}
 
-	re, err := NewRuleEngine(cfg)
+	re, err := NewRuleEngine(dbPath, cfg)
+	if err != nil {
+		t.Fatalf("failed to create rule engine: %v", err)
+	}
+	defer re.Close()
+
+	// Test default evaluation
+	allowed, reason, err := re.EvaluateURL("https://github.com/sentrysurface/surfaceproxy-core")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !allowed {
+		t.Errorf("expected github.com to be allowed, got blocked: %s", reason)
+	}
 
-	allowed, reason, err := re.EvaluateURL("https://github.com/sentrysurface/surfaceproxy-core")
+	// Test subdomain matching (domain walk)
+	allowed, reason, err = re.EvaluateURL("https://sub.github.com/path")
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if !allowed {
-		t.Errorf("expected allowed, got blocked: %s", reason)
+		t.Errorf("expected sub.github.com to be allowed (via github.com), got blocked: %s", reason)
 	}
 
-	allowed, _, err = re.EvaluateURL("https://google.com")
+	// Test blocklist domain walk
+	allowed, reason, err = re.EvaluateURL("https://sub.doubleclick.net/ad.gif")
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if allowed {
-		t.Error("expected blocked (not in allowlist), but got allowed")
+		t.Error("expected sub.doubleclick.net to be blocked, got allowed")
 	}
 
-	allowed, _, err = re.EvaluateURL("https://sub.adserver.com/track")
+	// Test not in allowlist
+	allowed, reason, err = re.EvaluateURL("https://malicious.com")
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if allowed {
-		t.Error("expected blocked (blocklist match), but got allowed")
+		t.Error("expected malicious.com to be blocked (not in allowlist), got allowed")
+	}
+
+	// Test CRUD functions
+	err = re.AddRule(true, "malicious.com", true)
+	if err != nil {
+		t.Fatalf("failed to add rule: %v", err)
+	}
+
+	allowed, reason, err = re.EvaluateURL("https://malicious.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Errorf("expected malicious.com to be allowed after adding rule, got blocked: %s", reason)
+	}
+
+	// Test disable rule
+	err = re.UpdateRule(true, "malicious.com", true, "malicious.com", false)
+	if err != nil {
+		t.Fatalf("failed to update rule: %v", err)
+	}
+
+	allowed, reason, err = re.EvaluateURL("https://malicious.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed {
+		t.Error("expected malicious.com to be blocked after disabling rule, got allowed")
+	}
+
+	// Test delete rule
+	err = re.DeleteRule(true, "malicious.com")
+	if err != nil {
+		t.Fatalf("failed to delete rule: %v", err)
 	}
 }
 
@@ -69,31 +125,23 @@ func TestCleanJSONC(t *testing.T) {
 	}
 }
 
-func TestConvertPatternToRegex(t *testing.T) {
+func TestCleanDomainPattern(t *testing.T) {
 	tests := []struct {
-		pattern string
-		url     string
-		allowed bool
+		pattern  string
+		expected string
 	}{
-		{"https://code.visualstudio.com", "https://code.visualstudio.com", true},
-		{"https://code.visualstudio.com", "https://code.visualstudio.com/docs", true},
-		{"https://github.com/microsoft/vscode/wiki/*", "https://github.com/microsoft/vscode/wiki/some-page", true},
-		{"https://github.com/microsoft/vscode/wiki/*", "https://github.com/microsoft/vscode/wiki/", true},
-		{"https://github.com/microsoft/vscode/wiki/*", "https://github.com/microsoft/vscode/other", false},
-		{"fastapi.tiangolo.com", "https://fastapi.tiangolo.com", true},
-		{"fastapi.tiangolo.com", "http://fastapi.tiangolo.com/docs", true},
+		{"https://code.visualstudio.com", "code.visualstudio.com"},
+		{"*.github.com", "github.com"},
+		{"github.com", "github.com"},
+		{"^https?://([a-zA-Z0-9-]+\\.)*google\\.com(/.*)?$", "google.com"},
+		{"^https?://([a-zA-Z0-9-]+\\.)*adservice\\.google\\.com(/.*)?$", "adservice.google.com"},
+		{"http://test.org/some/path", "test.org"},
 	}
 
 	for _, tc := range tests {
-		regexStr := convertPatternToRegex(tc.pattern)
-		r, err := regexp.Compile(regexStr)
-		if err != nil {
-			t.Errorf("failed to compile regex %q: %v", regexStr, err)
-			continue
-		}
-		matched := r.MatchString(tc.url)
-		if matched != tc.allowed {
-			t.Errorf("pattern %q, URL %q: expected match %v, got %v (regex: %s)", tc.pattern, tc.url, tc.allowed, matched, regexStr)
+		actual := cleanDomainPattern(tc.pattern)
+		if actual != tc.expected {
+			t.Errorf("cleanDomainPattern(%q) = %q, expected %q", tc.pattern, actual, tc.expected)
 		}
 	}
 }
